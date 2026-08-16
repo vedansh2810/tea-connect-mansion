@@ -67,6 +67,14 @@ export default function OrderPlaced({ orderId, table, onOrderMore }) {
               {order.id} · Table {order.table} · {clockTime(order.placedAt)}
             </p>
 
+            {/* Customer name, when provided */}
+            {order.customerName && (
+              <p className="mt-1 font-mono text-[0.66rem] tracking-[0.1em] text-ink">
+                {order.customerName}
+                {order.customerPhone ? ` · ${order.customerPhone}` : ''}
+              </p>
+            )}
+
             {/* Brass stamp. Laid out in the flow so it never crosses the
                 wordmark, tilted and pulled tight so it still reads as applied
                 after the fact rather than printed with the bill. */}

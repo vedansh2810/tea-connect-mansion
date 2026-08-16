@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BarChart3,
   Bell,
   BellOff,
   CircleSlash,
+  HandMetal,
   MonitorSmartphone,
   QrCode,
+  Settings,
   Trash2,
   WifiOff,
   X,
@@ -12,9 +15,13 @@ import {
 import OrderTicket from './OrderTicket'
 import TableCodes from './TableCodes'
 import SoldOut from './SoldOut'
+import Analytics from './Analytics'
+import MenuManager from './MenuManager'
+import WaiterCallBar from './WaiterCallBar'
 import { CrownRule } from '../ornament/Ornaments'
 import { STATUS_META, STATUSES, useOrders } from '../../store/OrdersContext'
 import { useAvailability } from '../../store/AvailabilityContext'
+import { useWaiterCalls } from '../../store/WaiterCallContext'
 import { useChime } from '../../lib/useChime'
 import { rupees } from '../../lib/format'
 
@@ -26,7 +33,13 @@ const FILTERS = [{ id: 'live', label: 'Live' }, ...STATUSES.map((s) => ({ id: s,
  * Inverted from the customer's parlour: ink ground, warm light, chits pinned
  * in a grid so a whole room of tables reads at a glance. Same tokens, other
  * side of the kitchen door.
+ *
+ * Now includes:
+ *  - Waiter call notifications with distinct chime
+ *  - Menu CMS panel
+ *  - Analytics dashboard
  */
+
 /**
  * Says out loud where orders are coming from. A manager should never have to
  * guess whether the pass is device-only — that is the difference between
@@ -72,8 +85,9 @@ function ConnectionBadge({ mode, connection, onRetry }) {
 export default function AdminDashboard({ onOpenMenu }) {
   const { orders, advance, setStatus, clearCompleted, mode, connection, error, dismissError, refresh } =
     useOrders()
-  const { arm, ring, armed, muted, setMuted } = useChime()
+  const { arm, ring, ringWaiter, armed, muted, setMuted } = useChime()
   const { count: soldOutCount } = useAvailability()
+  const { calls, acknowledge, dismiss, count: waiterCallCount } = useWaiterCalls()
 
   const [filter, setFilter] = useState('live')
   const [now, setNow] = useState(() => Date.now())
@@ -81,8 +95,11 @@ export default function AdminDashboard({ onOpenMenu }) {
   const [flash, setFlash] = useState(0)
   const [codesOpen, setCodesOpen] = useState(false)
   const [soldOutOpen, setSoldOutOpen] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [menuManagerOpen, setMenuManagerOpen] = useState(false)
 
   const knownIds = useRef(null)
+  const knownCallIds = useRef(null)
 
   // The pass owns the whole window, so the document itself goes dark. Without
   // this, overscroll and any short-content gap show the parlour's parchment.
@@ -120,6 +137,23 @@ export default function AdminDashboard({ onOpenMenu }) {
     const timer = setTimeout(() => setFreshIds(new Set()), 900)
     return () => clearTimeout(timer)
   }, [orders, ring])
+
+  // Waiter call chime — distinct from the order bell.
+  useEffect(() => {
+    const ids = new Set(calls.map((c) => c.id))
+
+    if (knownCallIds.current === null) {
+      knownCallIds.current = ids
+      return
+    }
+
+    const newCalls = calls.filter((c) => !knownCallIds.current.has(c.id))
+    knownCallIds.current = ids
+
+    if (newCalls.length > 0) {
+      ringWaiter()
+    }
+  }, [calls, ringWaiter])
 
   const counts = useMemo(() => {
     const base = { pending: 0, preparing: 0, served: 0, completed: 0 }
@@ -172,7 +206,7 @@ export default function AdminDashboard({ onOpenMenu }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ConnectionBadge mode={mode} connection={connection} onRetry={refresh} />
 
             {!armed && (
@@ -197,6 +231,14 @@ export default function AdminDashboard({ onOpenMenu }) {
               </button>
             )}
 
+            {/* Waiter call count */}
+            {waiterCallCount > 0 && (
+              <span className="flex items-center gap-1.5 border border-brass bg-brass/20 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-brass-light uppercase">
+                <HandMetal className="size-3.5" aria-hidden="true" />
+                {waiterCallCount} {waiterCallCount === 1 ? 'call' : 'calls'}
+              </span>
+            )}
+
             {/* The count is on the button on purpose: an item left marked off
                 after the delivery arrives loses sales quietly all day. */}
             <button
@@ -219,6 +261,24 @@ export default function AdminDashboard({ onOpenMenu }) {
             >
               <QrCode className="size-3.5" aria-hidden="true" />
               Table codes
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMenuManagerOpen(true)}
+              className="flex items-center gap-1.5 border border-parchment/25 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-parchment/80 uppercase transition-colors hover:border-brass hover:text-brass-light"
+            >
+              <Settings className="size-3.5" aria-hidden="true" />
+              Menu
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAnalyticsOpen(true)}
+              className="flex items-center gap-1.5 border border-parchment/25 px-3 py-2 font-mono text-[10px] tracking-[0.14em] text-parchment/80 uppercase transition-colors hover:border-brass hover:text-brass-light"
+            >
+              <BarChart3 className="size-3.5" aria-hidden="true" />
+              Analytics
             </button>
 
             <button
@@ -276,6 +336,9 @@ export default function AdminDashboard({ onOpenMenu }) {
           </div>
         </div>
       </header>
+
+      {/* ── Waiter call notifications ──────────────────────────────────── */}
+      <WaiterCallBar calls={calls} onAcknowledge={acknowledge} onDismiss={dismiss} />
 
       {/* A failed write is worth interrupting for — the kitchen may be looking
           at a status the database never accepted. */}
@@ -351,6 +414,8 @@ export default function AdminDashboard({ onOpenMenu }) {
 
       <TableCodes open={codesOpen} onClose={() => setCodesOpen(false)} />
       <SoldOut open={soldOutOpen} onClose={() => setSoldOutOpen(false)} />
+      <Analytics open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
+      <MenuManager open={menuManagerOpen} onClose={() => setMenuManagerOpen(false)} />
     </div>
   )
 }

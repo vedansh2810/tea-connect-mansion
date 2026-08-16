@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { RotateCcw, Search, X } from 'lucide-react'
 import { useAvailability } from '../../store/AvailabilityContext'
-import { ITEM_INDEX, MENU } from '../../data/menu'
+import { useMenu } from '../../store/MenuContext'
 import { rupees } from '../../lib/format'
 
 /**
@@ -16,6 +16,7 @@ import { rupees } from '../../lib/format'
  */
 export default function SoldOut({ open, onClose }) {
   const { unavailable, toggle, restoreAll, count, error } = useAvailability()
+  const { itemIndex, menu } = useMenu()
   const [query, setQuery] = useState('')
 
   useEffect(() => {
@@ -26,20 +27,20 @@ export default function SoldOut({ open, onClose }) {
   }, [open, onClose])
 
   const soldOutItems = useMemo(
-    () => ITEM_INDEX.filter((item) => unavailable.has(item.id)),
-    [unavailable],
+    () => itemIndex.filter((item) => unavailable.has(item.id)),
+    [unavailable, itemIndex],
   )
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return []
-    return ITEM_INDEX.filter(
+    return itemIndex.filter(
       (item) =>
         !unavailable.has(item.id) &&
         (item.name.toLowerCase().includes(needle) ||
           item.groupName.toLowerCase().includes(needle)),
     ).slice(0, 40)
-  }, [query, unavailable])
+  }, [query, unavailable, itemIndex])
 
   if (!open) return null
 
@@ -170,12 +171,12 @@ export default function SoldOut({ open, onClose }) {
               </ul>
             ) : (
               <p className="mt-2 px-1 py-4 font-body text-sm text-ink-soft">
-                Nothing matches “{query}”.
+                Nothing matches "{query}".
               </p>
             )
           ) : (
             <p className="mt-2 px-1 font-body text-xs leading-relaxed text-ink-soft">
-              Search by dish or by section — {MENU.length} sections, {ITEM_INDEX.length} items.
+              Search by dish or by section — {menu.length} sections, {itemIndex.length} items.
             </p>
           )}
         </section>

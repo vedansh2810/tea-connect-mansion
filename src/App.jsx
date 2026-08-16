@@ -5,6 +5,8 @@ import PassGate from './components/admin/PassGate'
 import { CartProvider } from './store/CartContext'
 import { OrdersProvider } from './store/OrdersContext'
 import { AvailabilityProvider } from './store/AvailabilityContext'
+import { MenuProvider } from './store/MenuContext'
+import { WaiterCallProvider } from './store/WaiterCallContext'
 import { useRoute } from './lib/useRoute'
 
 /**
@@ -27,35 +29,43 @@ export default function App() {
   if (view === 'admin') {
     return (
       <PassGate>
-        <OrdersProvider>
-          <AvailabilityProvider>
-            <AdminDashboard onOpenMenu={() => navigate({ view: 'menu', table: table ?? '4' })} />
-          </AvailabilityProvider>
-        </OrdersProvider>
+        <MenuProvider>
+          <OrdersProvider>
+            <AvailabilityProvider>
+              <WaiterCallProvider>
+                <AdminDashboard onOpenMenu={() => navigate({ view: 'menu', table: table ?? '4' })} />
+              </WaiterCallProvider>
+            </AvailabilityProvider>
+          </OrdersProvider>
+        </MenuProvider>
       </PassGate>
     )
   }
 
   return (
-    <OrdersProvider>
-      <AvailabilityProvider>
-        {table ? (
-          <CartProvider table={table}>
-            <CustomerMenu
-              table={table}
-              demo={demo}
-              onChangeTable={() => navigate({ view: 'menu', table: null })}
-              onOpenPass={() => navigate({ view: 'admin' })}
-            />
-          </CartProvider>
-        ) : (
-          <TableGate
-            demo={demo}
-            onTable={(next) => navigate({ view: 'menu', table: next })}
-            onOpenPass={() => navigate({ view: 'admin' })}
-          />
-        )}
-      </AvailabilityProvider>
-    </OrdersProvider>
+    <MenuProvider>
+      <OrdersProvider>
+        <AvailabilityProvider>
+          <WaiterCallProvider>
+            {table ? (
+              <CartProvider table={table}>
+                <CustomerMenu
+                  table={table}
+                  demo={demo}
+                  onChangeTable={() => navigate({ view: 'menu', table: null })}
+                  onOpenPass={() => navigate({ view: 'admin' })}
+                />
+              </CartProvider>
+            ) : (
+              <TableGate
+                demo={demo}
+                onTable={(next) => navigate({ view: 'menu', table: next })}
+                onOpenPass={() => navigate({ view: 'admin' })}
+              />
+            )}
+          </WaiterCallProvider>
+        </AvailabilityProvider>
+      </OrdersProvider>
+    </MenuProvider>
   )
 }

@@ -4,7 +4,8 @@ import { ChitLine, ChitPaper, ChitRule } from '../chit/ChitPaper'
 import { TeaCup } from '../ornament/Ornaments'
 import { useCart } from '../../store/CartContext'
 import { useAvailability } from '../../store/AvailabilityContext'
-import { findItem, RESTAURANT } from '../../data/menu'
+import { useMenu } from '../../store/MenuContext'
+import { RESTAURANT } from '../../data/menu'
 import { describeLine, rupees } from '../../lib/format'
 import { showsTax, taxLabel, taxOn } from '../../lib/tax'
 
@@ -13,11 +14,16 @@ const NOTE_LIMIT = 200
 /**
  * The bill, as a chit. Opens over the menu, closes on Escape or backdrop, and
  * traps nothing it does not need to — the menu behind it is inert while open.
+ *
+ * Now collects customer name and phone before sending to the kitchen.
  */
 export default function CartSheet({ open, onClose, table, onPlace }) {
   const { lines, setQty, remove, toggleAddOn, subtotal, count } = useCart()
   const { isSoldOut } = useAvailability()
+  const { findItem } = useMenu()
   const [note, setNote] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
   const [placing, setPlacing] = useState(false)
   const [failed, setFailed] = useState(false)
   const panelRef = useRef(null)
@@ -43,13 +49,19 @@ export default function CartSheet({ open, onClose, table, onPlace }) {
   const blocked = lines.filter((line) => isSoldOut(line.itemId))
   const tax = taxOn(subtotal)
 
+  const nameValid = customerName.trim().length >= 1
+  const phoneValid = /^[6-9]\d{9}$/.test(customerPhone.trim())
+  const canPlace = lines.length > 0 && !placing && blocked.length === 0 && nameValid && phoneValid
+
   async function place() {
-    if (!lines.length || placing || blocked.length) return
+    if (!canPlace) return
     setPlacing(true)
     setFailed(false)
     try {
-      await onPlace({ note, tax })
+      await onPlace({ note, tax, customerName: customerName.trim(), customerPhone: customerPhone.trim() })
       setNote('')
+      setCustomerName('')
+      setCustomerPhone('')
     } catch {
       // The cart is deliberately left intact. Losing someone's order to a
       // dropped connection and telling them it worked is the worst outcome
@@ -190,6 +202,55 @@ export default function CartSheet({ open, onClose, table, onPlace }) {
 
                 <ChitRule />
 
+                {/* ── Customer details ───────────────────────────────────── */}
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label
+                      htmlFor="customer-name"
+                      className="font-mono text-[0.62rem] tracking-[0.16em] text-ink-soft uppercase"
+                    >
+                      Your name <span className="text-oxblood">*</span>
+                    </label>
+                    <input
+                      id="customer-name"
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Enter your name"
+                      maxLength={60}
+                      autoComplete="name"
+                      className="mt-1 w-full border border-brass/35 bg-parchment/60 px-2.5 py-2 font-mono text-[0.72rem] text-ink placeholder:text-ink-soft/50 focus:border-brass focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="customer-phone"
+                      className="font-mono text-[0.62rem] tracking-[0.16em] text-ink-soft uppercase"
+                    >
+                      Phone number <span className="text-oxblood">*</span>
+                    </label>
+                    <input
+                      id="customer-phone"
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="10-digit mobile number"
+                      inputMode="numeric"
+                      maxLength={10}
+                      autoComplete="tel"
+                      className="mt-1 w-full border border-brass/35 bg-parchment/60 px-2.5 py-2 font-mono text-[0.72rem] text-ink placeholder:text-ink-soft/50 focus:border-brass focus:outline-none"
+                    />
+                    {customerPhone.length > 0 && !phoneValid && (
+                      <p className="mt-1 font-mono text-[0.58rem] text-oxblood">
+                        Enter a valid 10-digit Indian mobile number
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <ChitRule />
+
                 <div className="pt-1">
                   <label
                     htmlFor="kitchen-note"
@@ -276,16 +337,18 @@ export default function CartSheet({ open, onClose, table, onPlace }) {
                 <button
                   type="button"
                   onClick={place}
-                  disabled={placing || blocked.length > 0}
+                  disabled={!canPlace}
                   className="mt-4 flex w-full items-center justify-center gap-2 bg-ink px-4 py-3.5 font-mono text-[11px] tracking-[0.2em] text-parchment uppercase transition-colors hover:bg-oxblood disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {blocked.length > 0
                     ? 'Remove sold-out items first'
-                    : placing
-                      ? 'Sending to the kitchen…'
-                      : failed
-                        ? `Try again · ${rupees(tax.total)}`
-                        : `Order now · ${rupees(tax.total)}`}
+                    : !nameValid || !phoneValid
+                      ? 'Fill in your details above'
+                      : placing
+                        ? 'Sending to the kitchen…'
+                        : failed
+                          ? `Try again · ${rupees(tax.total)}`
+                          : `Order now · ${rupees(tax.total)}`}
                 </button>
                 <p className="mt-2 text-center font-mono text-[0.6rem] text-ink-soft">
                   No payment now — this only sends your order to the kitchen.

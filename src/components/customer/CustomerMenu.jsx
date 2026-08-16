@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChefHat, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChefHat, HandMetal, Search, X } from 'lucide-react'
 import SectionBlock from './SectionBlock'
 import CartSheet from './CartSheet'
 import OrderPlaced from './OrderPlaced'
 import { ChefMark, CrownRule, DotTriad, OrnateFrame, VegMark } from '../ornament/Ornaments'
 import { useCart } from '../../store/CartContext'
 import { useOrders, useTableOrders } from '../../store/OrdersContext'
-import { MENU, RESTAURANT, TOTAL_ITEMS } from '../../data/menu'
+import { useMenu } from '../../store/MenuContext'
+import { useWaiterCalls } from '../../store/WaiterCallContext'
+import { RESTAURANT } from '../../data/menu'
 import { clockTime, rupees } from '../../lib/format'
 
 /** Narrow the menu to matches, keeping the section and group structure intact. */
-function filterMenu(query, sectionId) {
+function filterMenu(menu, query, sectionId) {
   const needle = query.trim().toLowerCase()
-  return MENU.map((section) => {
+  return menu.map((section) => {
     if (sectionId !== 'all' && section.id !== sectionId) return null
     if (!needle) return section
 
@@ -34,18 +36,24 @@ function filterMenu(query, sectionId) {
   }).filter(Boolean)
 }
 
+const WAITER_COOLDOWN = 30_000 // 30 seconds
+
 export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass }) {
   const { count, subtotal, clear, lines } = useCart()
   const { placeOrder } = useOrders()
+  const { menu, totalItems } = useMenu()
+  const { placeCall } = useWaiterCalls()
   const tableOrders = useTableOrders(table)
 
   const [query, setQuery] = useState('')
   const [sectionId, setSectionId] = useState('all')
   const [cartOpen, setCartOpen] = useState(false)
   const [placedId, setPlacedId] = useState(null)
+  const [waiterCalled, setWaiterCalled] = useState(false)
+  const [waiterCooldown, setWaiterCooldown] = useState(false)
   const searchRef = useRef(null)
 
-  const sections = useMemo(() => filterMenu(query, sectionId), [query, sectionId])
+  const sections = useMemo(() => filterMenu(menu, query, sectionId), [menu, query, sectionId])
   const matchCount = useMemo(
     () => sections.reduce((sum, section) => sum + section.groups.reduce((n, g) => n + g.items.length, 0), 0),
     [sections],
@@ -58,7 +66,7 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
 
   // Throws on failure so the bill can keep the cart and say so. Never clear a
   // customer's order before the kitchen has actually accepted it.
-  async function handlePlace({ note, tax }) {
+  async function handlePlace({ note, tax, customerName, customerPhone }) {
     const order = await placeOrder({
       table,
       lines,
@@ -67,11 +75,26 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
       taxPercent: tax.percent,
       taxAmount: tax.amount,
       total: tax.total,
+      customerName,
+      customerPhone,
     })
     clear()
     setCartOpen(false)
     setPlacedId(order.id)
   }
+
+  const handleCallWaiter = useCallback(async () => {
+    if (waiterCooldown) return
+    try {
+      await placeCall(table)
+      setWaiterCalled(true)
+      setWaiterCooldown(true)
+      setTimeout(() => setWaiterCalled(false), 3000)
+      setTimeout(() => setWaiterCooldown(false), WAITER_COOLDOWN)
+    } catch {
+      // Error handled in context
+    }
+  }, [table, placeCall, waiterCooldown])
 
   if (placedId) {
     return (
@@ -159,7 +182,7 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={`Search ${TOTAL_ITEMS} dishes — chai, paneer, waffle…`}
+              placeholder={`Search ${totalItems} dishes — chai, paneer, waffle…`}
               aria-label="Search the menu"
               className="w-full border border-brass/35 bg-ivory py-2.5 pr-9 pl-9 font-body text-sm text-ink placeholder:text-ink-soft/55 focus:border-brass focus:outline-none"
             />
@@ -180,7 +203,7 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
         </div>
 
         <div className="scrollbar-none flex gap-1.5 overflow-x-auto px-3 pb-2.5">
-          {[{ id: 'all', name: 'Everything' }, ...MENU].map((entry) => {
+          {[{ id: 'all', name: 'Everything' }, ...menu].map((entry) => {
             const active = sectionId === entry.id
             return (
               <button
@@ -208,15 +231,15 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
       <div className="px-4">
         {query && (
           <p className="pt-4 text-center font-mono text-[10px] tracking-[0.16em] text-ink-soft uppercase" role="status">
-            {matchCount} {matchCount === 1 ? 'match' : 'matches'} for “{query}”
+            {matchCount} {matchCount === 1 ? 'match' : 'matches'} for "{query}"
           </p>
         )}
 
         {sections.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="font-display text-lg tracking-wide text-ink">Nothing matches “{query}”.</p>
+            <p className="font-display text-lg tracking-wide text-ink">Nothing matches "{query}".</p>
             <p className="mt-2 font-body text-sm text-ink-soft">
-              Try a shorter word — “chai”, “paneer”, “waffle”.
+              Try a shorter word — "chai", "paneer", "waffle".
             </p>
             <button
               type="button"
@@ -260,6 +283,28 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
             </button>
           )}
         </footer>
+      </div>
+
+      {/* ── Call a waiter button ─────────────────────────────────────────── */}
+      <div className="fixed right-3 z-40 safe-b" style={{ bottom: count > 0 ? '5.5rem' : '1rem' }}>
+        <button
+          type="button"
+          onClick={handleCallWaiter}
+          disabled={waiterCooldown}
+          className={`flex items-center gap-2 rounded-full border px-4 py-2.5 shadow-lg transition-all ${
+            waiterCalled
+              ? 'border-veg bg-veg/90 text-parchment'
+              : waiterCooldown
+                ? 'border-brass/30 bg-parchment/90 text-ink-soft/50 backdrop-blur-sm'
+                : 'border-brass/50 bg-parchment/95 text-ink backdrop-blur-sm hover:border-brass hover:bg-ivory'
+          }`}
+          aria-label="Call a waiter"
+        >
+          <HandMetal className="size-4" strokeWidth={1.8} />
+          <span className="font-mono text-[10px] tracking-[0.14em] uppercase">
+            {waiterCalled ? 'Waiter called ✓' : waiterCooldown ? 'Called…' : 'Call waiter'}
+          </span>
+        </button>
       </div>
 
       {/* ── The chit tab: the bill peeking up from the bottom edge ──────── */}

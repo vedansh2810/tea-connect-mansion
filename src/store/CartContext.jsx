@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react'
-import { findItem } from '../data/menu'
+import { useMenu } from './MenuContext'
 
 /**
  * The cart for one seating. Scoped per table and kept in sessionStorage so a
@@ -22,88 +22,92 @@ function priceOf(item, tierIndex, addOn) {
   return base + (addOn && item.addOn ? item.addOn.price : 0)
 }
 
-function reducer(state, action) {
-  switch (action.type) {
-    case 'hydrate':
-      return action.lines
+function makeReducer(findItem) {
+  return function reducer(state, action) {
+    switch (action.type) {
+      case 'hydrate':
+        return action.lines
 
-    case 'add': {
-      const { itemId, tierIndex = 0, choice = null, addOn = false } = action
-      const item = findItem(itemId)
-      if (!item) return state
+      case 'add': {
+        const { itemId, tierIndex = 0, choice = null, addOn = false } = action
+        const item = findItem(itemId)
+        if (!item) return state
 
-      const key = lineKey({ itemId, tierIndex, choice, addOn })
-      const existing = state.find((line) => line.key === key)
-      if (existing) {
-        return state.map((line) => (line.key === key ? { ...line, qty: line.qty + 1 } : line))
+        const key = lineKey({ itemId, tierIndex, choice, addOn })
+        const existing = state.find((line) => line.key === key)
+        if (existing) {
+          return state.map((line) => (line.key === key ? { ...line, qty: line.qty + 1 } : line))
+        }
+
+        return [
+          ...state,
+          {
+            key,
+            itemId,
+            name: item.name,
+            groupName: item.groupName,
+            tierIndex,
+            tierLabel: item.tiers?.[tierIndex] ?? null,
+            choice,
+            addOn,
+            addOnLabel: addOn ? item.addOn.label : null,
+            unitPrice: priceOf(item, tierIndex, addOn),
+            qty: 1,
+          },
+        ]
       }
 
-      return [
-        ...state,
-        {
-          key,
-          itemId,
-          name: item.name,
-          groupName: item.groupName,
-          tierIndex,
-          tierLabel: item.tiers?.[tierIndex] ?? null,
-          choice,
+      case 'setQty':
+        return state
+          .map((line) => (line.key === action.key ? { ...line, qty: action.qty } : line))
+          .filter((line) => line.qty > 0)
+
+      case 'toggleAddOn': {
+        // Moving a line onto/off an add-on can collide with an existing line.
+        const line = state.find((candidate) => candidate.key === action.key)
+        if (!line) return state
+        const item = findItem(line.itemId)
+        if (!item?.addOn) return state
+
+        const addOn = !line.addOn
+        const nextKey = lineKey({ ...line, addOn })
+        const collision = state.find((candidate) => candidate.key === nextKey)
+
+        const updated = {
+          ...line,
+          key: nextKey,
           addOn,
           addOnLabel: addOn ? item.addOn.label : null,
-          unitPrice: priceOf(item, tierIndex, addOn),
-          qty: 1,
-        },
-      ]
-    }
+          unitPrice: priceOf(item, line.tierIndex, addOn),
+        }
 
-    case 'setQty':
-      return state
-        .map((line) => (line.key === action.key ? { ...line, qty: action.qty } : line))
-        .filter((line) => line.qty > 0)
-
-    case 'toggleAddOn': {
-      // Moving a line onto/off an add-on can collide with an existing line.
-      const line = state.find((candidate) => candidate.key === action.key)
-      if (!line) return state
-      const item = findItem(line.itemId)
-      if (!item?.addOn) return state
-
-      const addOn = !line.addOn
-      const nextKey = lineKey({ ...line, addOn })
-      const collision = state.find((candidate) => candidate.key === nextKey)
-
-      const updated = {
-        ...line,
-        key: nextKey,
-        addOn,
-        addOnLabel: addOn ? item.addOn.label : null,
-        unitPrice: priceOf(item, line.tierIndex, addOn),
+        if (collision) {
+          return state
+            .filter((candidate) => candidate.key !== line.key)
+            .map((candidate) =>
+              candidate.key === nextKey ? { ...candidate, qty: candidate.qty + line.qty } : candidate,
+            )
+        }
+        return state.map((candidate) => (candidate.key === line.key ? updated : candidate))
       }
 
-      if (collision) {
+      case 'remove':
+        return state.filter((line) => line.key !== action.key)
+
+      case 'clear':
+        return []
+
+      default:
         return state
-          .filter((candidate) => candidate.key !== line.key)
-          .map((candidate) =>
-            candidate.key === nextKey ? { ...candidate, qty: candidate.qty + line.qty } : candidate,
-          )
-      }
-      return state.map((candidate) => (candidate.key === line.key ? updated : candidate))
     }
-
-    case 'remove':
-      return state.filter((line) => line.key !== action.key)
-
-    case 'clear':
-      return []
-
-    default:
-      return state
   }
 }
 
 const CartContext = createContext(null)
 
 export function CartProvider({ table, children }) {
+  const { findItem } = useMenu()
+  const reducer = useMemo(() => makeReducer(findItem), [findItem])
   const [lines, dispatch] = useReducer(reducer, [])
 
   // Rehydrate when the table changes; sessionStorage keeps it to this seating.

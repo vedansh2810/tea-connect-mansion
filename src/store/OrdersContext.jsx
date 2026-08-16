@@ -134,6 +134,86 @@ export function OrdersProvider({ children }) {
     [orders, setStatus],
   )
 
+  /** Edit individual line items on an existing order. Recalculates totals. */
+  const editOrderLines = useCallback(
+    async (orderId, newLines, reason = '') => {
+      const order = orders.find((o) => o.id === orderId)
+      if (!order) return
+
+      const subtotal = newLines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+      const taxPercent = order.taxPercent ?? 0
+      const taxAmount = taxPercent > 0 ? Math.round((subtotal * taxPercent) / 100) : 0
+      const total = subtotal + taxAmount
+
+      // Optimistic
+      setOrders((rows) =>
+        rows.map((row) =>
+          row.id === orderId ? { ...row, lines: newLines, subtotal, taxAmount, total } : row,
+        ),
+      )
+
+      try {
+        await backend.updateOrderLines(orderId, newLines, subtotal, taxAmount, total)
+        await backend.logAudit(orderId, 'edit_lines', {
+          reason,
+          lineCount: newLines.length,
+          newSubtotal: subtotal,
+        })
+      } catch (cause) {
+        setError(humanError(cause))
+        refresh()
+      }
+    },
+    [orders, refresh],
+  )
+
+  /** Void a single line item from an order. */
+  const voidItem = useCallback(
+    async (orderId, lineKey, reason = '') => {
+      const order = orders.find((o) => o.id === orderId)
+      if (!order) return
+
+      const removedLine = order.lines.find((l) => l.key === lineKey)
+      const newLines = order.lines.filter((l) => l.key !== lineKey)
+
+      if (newLines.length === 0) {
+        // If voiding the last item, mark the order completed
+        await setStatus(orderId, 'completed')
+        await backend.logAudit(orderId, 'void_item', {
+          reason,
+          itemName: removedLine?.name,
+          note: 'Last item voided — order closed',
+        })
+        return
+      }
+
+      const subtotal = newLines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
+      const taxPercent = order.taxPercent ?? 0
+      const taxAmount = taxPercent > 0 ? Math.round((subtotal * taxPercent) / 100) : 0
+      const total = subtotal + taxAmount
+
+      setOrders((rows) =>
+        rows.map((row) =>
+          row.id === orderId ? { ...row, lines: newLines, subtotal, taxAmount, total } : row,
+        ),
+      )
+
+      try {
+        await backend.updateOrderLines(orderId, newLines, subtotal, taxAmount, total)
+        await backend.logAudit(orderId, 'void_item', {
+          reason,
+          itemName: removedLine?.name,
+          qty: removedLine?.qty,
+          amount: removedLine ? removedLine.qty * removedLine.unitPrice : 0,
+        })
+      } catch (cause) {
+        setError(humanError(cause))
+        refresh()
+      }
+    },
+    [orders, refresh, setStatus],
+  )
+
   const clearCompleted = useCallback(async () => {
     setOrders((rows) => rows.filter((row) => row.status !== 'completed'))
     try {
@@ -159,6 +239,8 @@ export function OrdersProvider({ children }) {
       placeOrder,
       setStatus,
       advance,
+      editOrderLines,
+      voidItem,
       clearCompleted,
       resetAll,
       refresh,
@@ -167,7 +249,7 @@ export function OrdersProvider({ children }) {
       error,
       dismissError: () => setError(null),
     }),
-    [orders, placeOrder, setStatus, advance, clearCompleted, resetAll, refresh, status, error],
+    [orders, placeOrder, setStatus, advance, editOrderLines, voidItem, clearCompleted, resetAll, refresh, status, error],
   )
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>

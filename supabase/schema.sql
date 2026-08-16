@@ -26,6 +26,12 @@ alter table orders add column if not exists tax_percent numeric(5, 2) not null d
 alter table orders add column if not exists tax_amount  integer       not null default 0;
 alter table orders add column if not exists total       integer;
 
+-- ── Customer details ────────────────────────────────────────────────────────
+-- Name and phone collected at checkout. Visible on the kitchen ticket so the
+-- staff can call a customer by name or ring them if they step out.
+alter table orders add column if not exists customer_name  text not null default '';
+alter table orders add column if not exists customer_phone text not null default '';
+
 -- ── Sold out ────────────────────────────────────────────────────────────────
 -- A row here means the kitchen has run out. Absence means available, so the
 -- common case costs nothing. The id matches `id` in src/data/menu.js.
@@ -67,6 +73,92 @@ exception
   when duplicate_object then null;
 end $$;
 
+-- ── Menu catalog (CMS) ─────────────────────────────────────────────────────
+-- The menu moves from a static JS file to the database so prices and items
+-- can be changed live from the admin dashboard without a redeploy.
+
+create table if not exists menu_sections (
+  id         text primary key,
+  name       text    not null,
+  kicker     text,
+  note       text,
+  sort_order integer not null default 0
+);
+
+create table if not exists menu_groups (
+  id         text primary key,
+  section_id text    not null references menu_sections(id) on delete cascade,
+  name       text    not null,
+  tiers      jsonb,
+  add_on     jsonb,
+  footnote   text,
+  sort_order integer not null default 0
+);
+
+create table if not exists menu_items (
+  id           text primary key,
+  group_id     text    not null references menu_groups(id) on delete cascade,
+  name         text    not null,
+  price        integer,
+  prices       jsonb,
+  note         text,
+  choices      jsonb,
+  chef         boolean not null default false,
+  is_available boolean not null default true,
+  sort_order   integer not null default 0
+);
+
+-- Realtime for menu changes — a price edit propagates to every phone instantly.
+do $$
+begin
+  alter publication supabase_realtime add table menu_sections;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table menu_groups;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table menu_items;
+exception when duplicate_object then null;
+end $$;
+
+-- ── Waiter calls ────────────────────────────────────────────────────────────
+-- A customer taps "Call a waiter" on their phone; the pass shows the table
+-- number immediately with a distinct chime.
+
+create table if not exists waiter_calls (
+  id          serial primary key,
+  table_label text not null,
+  status      text not null default 'pending'
+                check (status in ('pending', 'acknowledged', 'dismissed')),
+  created_at  timestamptz not null default now()
+);
+
+do $$
+begin
+  alter publication supabase_realtime add table waiter_calls;
+exception when duplicate_object then null;
+end $$;
+
+-- ── Order audit log ─────────────────────────────────────────────────────────
+-- Every modification to an order after placement is recorded here so the
+-- manager can see exactly what happened and when.
+
+create table if not exists order_audit_log (
+  id         serial primary key,
+  order_id   text not null,
+  action     text not null,
+  detail     jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists audit_order_idx on order_audit_log (order_id);
+
 -- ── Access ──────────────────────────────────────────────────────────────────
 --
 -- READ THIS BEFORE GOING LIVE.
@@ -106,6 +198,47 @@ drop policy if exists "sold out: anyone can clear" on unavailable_items;
 create policy "sold out: anyone can read"  on unavailable_items for select to anon, authenticated using (true);
 create policy "sold out: anyone can write" on unavailable_items for insert to anon, authenticated with check (true);
 create policy "sold out: anyone can clear" on unavailable_items for delete to anon, authenticated using (true);
+
+-- Menu catalog: everyone reads, demo lets everyone write.
+alter table menu_sections enable row level security;
+alter table menu_groups enable row level security;
+alter table menu_items enable row level security;
+
+drop policy if exists "menu: anyone can read sections" on menu_sections;
+drop policy if exists "menu: anyone can write sections" on menu_sections;
+drop policy if exists "menu: anyone can read groups" on menu_groups;
+drop policy if exists "menu: anyone can write groups" on menu_groups;
+drop policy if exists "menu: anyone can read items" on menu_items;
+drop policy if exists "menu: anyone can write items" on menu_items;
+
+create policy "menu: anyone can read sections" on menu_sections for select to anon, authenticated using (true);
+create policy "menu: anyone can write sections" on menu_sections for all to anon, authenticated using (true) with check (true);
+create policy "menu: anyone can read groups" on menu_groups for select to anon, authenticated using (true);
+create policy "menu: anyone can write groups" on menu_groups for all to anon, authenticated using (true) with check (true);
+create policy "menu: anyone can read items" on menu_items for select to anon, authenticated using (true);
+create policy "menu: anyone can write items" on menu_items for all to anon, authenticated using (true) with check (true);
+
+-- Waiter calls: customers can place them, everyone can read and manage.
+alter table waiter_calls enable row level security;
+
+drop policy if exists "calls: anyone can place" on waiter_calls;
+drop policy if exists "calls: anyone can read" on waiter_calls;
+drop policy if exists "calls: anyone can update" on waiter_calls;
+drop policy if exists "calls: anyone can delete" on waiter_calls;
+
+create policy "calls: anyone can place"  on waiter_calls for insert to anon, authenticated with check (true);
+create policy "calls: anyone can read"   on waiter_calls for select to anon, authenticated using (true);
+create policy "calls: anyone can update" on waiter_calls for update to anon, authenticated using (true);
+create policy "calls: anyone can delete" on waiter_calls for delete to anon, authenticated using (true);
+
+-- Audit log: everyone can read and write in demo mode.
+alter table order_audit_log enable row level security;
+
+drop policy if exists "audit: anyone can read" on order_audit_log;
+drop policy if exists "audit: anyone can write" on order_audit_log;
+
+create policy "audit: anyone can read"  on order_audit_log for select to anon, authenticated using (true);
+create policy "audit: anyone can write" on order_audit_log for insert to anon, authenticated with check (true);
 
 -- ── PRODUCTION policies ─────────────────────────────────────────────────────
 --
