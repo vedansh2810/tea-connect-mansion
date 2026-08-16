@@ -12,20 +12,22 @@
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // Load .env manually (no dotenv dependency)
-try {
-  const envPath = resolve(__dirname, '..', '.env')
-  const envContent = readFileSync(envPath, 'utf-8')
-  envContent.split('\n').forEach((line) => {
-    const match = line.match(/^(VITE_[A-Z_]+)\s*=\s*(.*)$/)
-    if (match) process.env[match[1]] = match[2].trim()
-  })
-} catch {
-  // .env not found — rely on environment variables
+for (const envFile of ['.env.local', '.env']) {
+  try {
+    const envPath = resolve(__dirname, '..', envFile)
+    const envContent = readFileSync(envPath, 'utf-8')
+    envContent.split('\n').forEach((line) => {
+      const match = line.match(/^(VITE_[A-Z_]+)\s*=\s*(.*)$/)
+      if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim()
+    })
+  } catch {
+    // file not found — try the next one
+  }
 }
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL
@@ -49,7 +51,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 // Import the menu data — this works because the menu.js uses standard ES
 // module syntax that Node supports.
-const menuModule = await import(resolve(__dirname, '..', 'src', 'data', 'menu.js'))
+const menuModule = await import(pathToFileURL(resolve(__dirname, '..', 'src', 'data', 'menu.js')).href)
 const MENU = menuModule.MENU
 
 async function seed() {
