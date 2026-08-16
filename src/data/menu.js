@@ -1,5 +1,5 @@
 /**
- * Tea Content Mansion — menu, transcribed from the printed card.
+ * Tea Connect Mansion — menu, transcribed from the printed card.
  *
  * Shape:
  *   section { id, name, kicker, note?, groups[] }
@@ -15,7 +15,7 @@
  */
 
 export const RESTAURANT = {
-  name: 'Tea Content Mansion',
+  name: 'Tea Connect Mansion',
   shortName: 'TCM',
   hours: 'Open 24×7',
   taxNote: 'GST extra, as applicable',

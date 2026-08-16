@@ -195,7 +195,7 @@ export default function AdminDashboard({ onOpenMenu }) {
           <div className="flex items-baseline gap-4">
             <div>
               <h1 className="font-display text-base font-medium tracking-[0.18em] text-parchment uppercase">
-                Tea Content Mansion
+                Tea Connect Mansion
               </h1>
               <p className="font-mono text-[9.5px] tracking-[0.26em] text-brass-light/80 uppercase">
                 The pass · live orders

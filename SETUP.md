@@ -1,6 +1,6 @@
 # Setting this up in the cafe
 
-A complete rollout guide for Tea Content Mansion's QR ordering system — from the
+A complete rollout guide for Tea Connect Mansion's QR ordering system — from the
 code as it stands today to a working dining room.
 
 Read section 1 before buying anything or printing anything.
@@ -393,7 +393,7 @@ in the host's dashboard — the `.env.local` file is not deployed.
 ### 5.2 Use a short, memorable domain
 
 The QR codes encode this URL, and customers occasionally type it. Something like
-`order.teacontentmansion.com` or `tcm.cafe` beats a long default subdomain. Set
+`order.teaconnectmansion.com` or `tcm.cafe` beats a long default subdomain. Set
 it up before generating codes — changing the domain later means reprinting every
 table card.
 

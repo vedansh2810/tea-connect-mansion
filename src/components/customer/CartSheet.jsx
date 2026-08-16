@@ -109,7 +109,7 @@ export default function CartSheet({ open, onClose, table, onPlace }) {
           <ChitPaper>
             <header className="text-center">
               <h2 className="font-display text-[0.95rem] font-medium tracking-[0.2em] text-ink uppercase">
-                Tea Content Mansion
+                Tea Connect Mansion
               </h2>
               <p className="mt-1 font-mono text-[0.62rem] tracking-[0.16em] text-ink-soft uppercase">
                 Table {table} · not yet sent to the kitchen

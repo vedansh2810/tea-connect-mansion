@@ -31,7 +31,7 @@ function QrCard({ table }) {
     <figure className="border border-brass/40 bg-ivory px-4 py-4 text-center break-inside-avoid">
       <figcaption>
         <p className="font-mono text-[9px] tracking-[0.26em] text-brass-dim uppercase">
-          Tea Content Mansion
+          Tea Connect Mansion
         </p>
         <p className="mt-1 font-display text-lg font-semibold tracking-[0.1em] text-ink uppercase">
           Table {table}

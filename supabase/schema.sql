@@ -1,4 +1,4 @@
--- Tea Content Mansion — order store
+-- Tea Connect Mansion — order store
 --
 -- Paste this whole file into the Supabase SQL editor and run it once.
 -- Safe to re-run: every statement guards against already existing.

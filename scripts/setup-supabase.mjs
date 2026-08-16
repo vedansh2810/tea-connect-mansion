@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Tea Content Mansion — Supabase setup
+ * Tea Connect Mansion — Supabase setup
  *
  *   npm run setup            configure, then verify
  *   npm run setup -- --check verify only, change nothing
@@ -123,7 +123,7 @@ export async function writeEnv(values, previous) {
   const extras = Object.entries(previous).filter(([key]) => !KEYS.includes(key))
 
   const body = [
-    '# Tea Content Mansion — local configuration',
+    '# Tea Connect Mansion — local configuration',
     '# Written by `npm run setup`. Never committed: .gitignore covers *.local.',
     '#',
     '# On a host (Cloudflare Pages, Netlify) set these in the dashboard instead,',
@@ -387,7 +387,7 @@ async function offerSchema(ref, url, key) {
 
 async function main() {
   say()
-  say(bold('  TEA CONTENT MANSION'))
+  say(bold('  TEA CONNECT MANSION'))
   say(dim('  Supabase setup'))
 
   const previous = await readEnv()

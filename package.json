@@ -1,9 +1,9 @@
 {
-  "name": "tea-content-mansion",
+  "name": "tea-connect-mansion",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "QR-code table ordering and kitchen pass for Tea Content Mansion",
+  "description": "QR-code table ordering and kitchen pass for Tea Connect Mansion",
   "scripts": {
     "setup": "node scripts/setup-supabase.mjs",
     "check": "node scripts/setup-supabase.mjs --check",

@@ -1,4 +1,4 @@
-# Tea Content Mansion — QR table ordering
+# Tea Connect Mansion — QR table ordering
 
 A customer menu that opens from the QR code on a table, and a kitchen pass that
 receives the orders. Two screens, one shared store.

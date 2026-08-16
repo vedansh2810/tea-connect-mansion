@@ -51,7 +51,7 @@ export default function PassGate({ children }) {
     <main className="flex min-h-dvh items-center justify-center bg-ink-rail px-6 py-16">
       <div className="w-full max-w-xs text-center">
         <h1 className="font-display text-base font-medium tracking-[0.18em] text-parchment uppercase">
-          Tea Content Mansion
+          Tea Connect Mansion
         </h1>
         <p className="mt-1 font-mono text-[9.5px] tracking-[0.26em] text-brass-light/80 uppercase">
           The pass

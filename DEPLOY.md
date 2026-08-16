@@ -1,6 +1,6 @@
 # Deploying the demo — free hosting, step by step
 
-Getting Tea Content Mansion onto a public URL you can hand to the café owner,
+Getting Tea Connect Mansion onto a public URL you can hand to the café owner,
 where they can scan a code with their own phone and watch the order land on your
 laptop.
 
@@ -77,7 +77,7 @@ This guide uses **Cloudflare Pages**. Netlify steps are in section 5.4.
 ### 3.1 New project
 
 1. Go to supabase.com, sign in, **New project**.
-2. Name it `tea-content-mansion`.
+2. Name it `tea-connect-mansion`.
 3. Set a database password and **save it somewhere** — you will not be shown it
    again.
 4. Region: pick the one closest to the café. For India, **Mumbai (ap-south-1)**.
@@ -219,7 +219,7 @@ If this is not a git repo yet:
 ```bash
 git init
 git add .
-git commit -m "Tea Content Mansion — QR table ordering"
+git commit -m "Tea Connect Mansion — QR table ordering"
 ```
 
 Confirm `.env.local` is **not** in that commit:
@@ -235,7 +235,7 @@ publishing your keys.
 Create an empty repo on GitHub (private is fine), then:
 
 ```bash
-git remote add origin https://github.com/yourname/tea-content-mansion.git
+git remote add origin https://github.com/yourname/tea-connect-mansion.git
 git branch -M main
 git push -u origin main
 ```
@@ -269,7 +269,7 @@ git push -u origin main
 
 5. **Save and Deploy.** It takes a minute or two.
 
-You get a URL like `https://tea-content-mansion.pages.dev`.
+You get a URL like `https://tea-connect-mansion.pages.dev`.
 
 ### 5.3 No routing configuration needed
 
