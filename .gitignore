@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+.DS_Store
+.vite
+
+# Local configuration. `*.local` covers .env.local; the second line covers the
+# backup `npm run setup` writes, which holds the same keys.
+*.local
+*.local.bak
+
+# Working files from transcribing the printed menu
+_pdfpages/
+*.pdf

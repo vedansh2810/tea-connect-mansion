@@ -1,0 +1,27 @@
+{
+  "name": "tea-content-mansion",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "QR-code table ordering and kitchen pass for Tea Content Mansion",
+  "scripts": {
+    "setup": "node scripts/setup-supabase.mjs",
+    "check": "node scripts/setup-supabase.mjs --check",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "lucide-react": "^0.475.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "vite": "^6.0.0"
+  }
+}

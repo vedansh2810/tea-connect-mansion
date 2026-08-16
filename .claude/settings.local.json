@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx skills *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Read(//tmp/**)",
+      "Bash(ls -la \"C:\\\\Users\\\\Vedansh Gupta\\\\AppData\\\\Local\\\\Temp\\\\skills-use-HBYgu3\\\\frontend-design\"; echo \"---CWD---\"; ls -la \"C:\\\\Users\\\\Vedansh Gupta\\\\Desktop\\\\fl\"; echo \"---MEM---\"; ls -la \"C:\\\\Users\\\\Vedansh Gupta\\\\.claude\\\\projects\\\\C--Users-Vedansh-Gupta-Desktop-fl\\\\memory\\\\\" 2>&1)",
+      "Bash(ls -la '/c/Users/Vedansh Gupta/AppData/Local/Temp/skills-use-HBYgu3/frontend-design'; echo '---CWD---'; ls -la '/c/Users/Vedansh Gupta/Desktop/fl'; echo '---MEM---'; ls -la '/c/Users/Vedansh Gupta/.claude/projects/C--Users-Vedansh-Gupta-Desktop-fl/memory/')",
+      "Bash(pip --version)",
+      "Bash(python -c \"import pypdf; print\\('pypdf ok'\\)\")",
+      "Bash(python -c \"import fitz; print\\('pymupdf ok'\\)\")",
+      "Bash(python -c \"import pdfplumber; print\\('pdfplumber ok'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(python -)",
+      "Bash(node --check scripts/setup-supabase.mjs)",
+      "Bash(rm -f /tmp/stub.mjs)",
+      "Bash(node -e \"console.log\\(Object.entries\\(require\\('./package.json'\\).scripts\\).map\\(\\([k,v]\\)=>'  '+k.padEnd\\(8\\)+v\\).join\\('\\\\n'\\)\\)\")"
+    ]
+  }
+}
