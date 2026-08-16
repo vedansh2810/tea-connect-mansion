@@ -119,7 +119,7 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
         </p>
 
         <h1 className="mt-3 font-display text-[1.45rem] leading-[1.1] font-medium tracking-[0.14em] text-ink uppercase letterpress">
-          Tea Content
+          Tea Connect
           <br />
           Mansion
         </h1>
