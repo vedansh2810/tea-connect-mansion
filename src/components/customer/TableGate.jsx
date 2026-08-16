@@ -33,7 +33,7 @@ export default function TableGate({ onTable, demo, onOpenPass }) {
         </p>
 
         <h1 className="mt-4 font-display text-[1.65rem] leading-[1.15] font-medium tracking-[0.13em] text-ink uppercase letterpress">
-          Tea Content
+          Tea Connect
           <br />
           Mansion
         </h1>
