@@ -59,6 +59,10 @@ const localBackend = {
     return readLocal()
   },
 
+  async listForTable(table) {
+    return readLocal().filter((o) => o.table === String(table))
+  },
+
   async place({ table, lines, note, subtotal, taxPercent, taxAmount, total, customerName, customerPhone }) {
     const existing = readLocal()
     // Sequential, the way a paper bill book runs.
@@ -262,6 +266,11 @@ const localBackend = {
     return this.listen('orders', onChange)
   },
 
+  subscribeForTable(table, onChange) {
+    // Local mode cannot filter broadcasts; falls back to the full feed.
+    return this.listen('orders', onChange)
+  },
+
   subscribeAvailability(onChange) {
     return this.listen('availability', onChange)
   },
@@ -272,6 +281,10 @@ const localBackend = {
 
   subscribeMenu(onChange) {
     return this.listen('menu', onChange)
+  },
+
+  disconnect() {
+    // No persistent connection in local mode.
   },
 }
 
@@ -371,6 +384,19 @@ const cloudBackend = {
       .or('archived.is.null,archived.eq.false')
       .order('placed_at', { ascending: false })
       .limit(500)
+    if (error) throw error
+    return data.map(fromRow)
+  },
+
+  async listForTable(table) {
+    const supabase = await client()
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('table_label', String(table))
+      .or('archived.is.null,archived.eq.false')
+      .order('placed_at', { ascending: false })
+      .limit(100)
     if (error) throw error
     return data.map(fromRow)
   },
@@ -647,15 +673,17 @@ const cloudBackend = {
 
   /* ── notification ─────────────────────────────────────────────────────── */
 
-  watch(name, table, onChange) {
+  watch(name, table, onChange, filter) {
     let channel = null
     let cancelled = false
 
     client().then((supabase) => {
       if (cancelled) return
+      const config = { event: '*', schema: 'public', table }
+      if (filter) config.filter = filter
       channel = supabase
         .channel(name)
-        .on('postgres_changes', { event: '*', schema: 'public', table }, onChange)
+        .on('postgres_changes', config, onChange)
         .subscribe()
     })
 
@@ -667,6 +695,16 @@ const cloudBackend = {
 
   subscribe(onChange) {
     return this.watch('orders-feed', 'orders', onChange)
+  },
+
+  /** Subscribe only to changes for a specific table — used by customer views. */
+  subscribeForTable(table, onChange) {
+    return this.watch(
+      `orders-table-${table}`,
+      'orders',
+      onChange,
+      `table_label=eq.${table}`,
+    )
   },
 
   subscribeAvailability(onChange) {
@@ -698,6 +736,14 @@ const cloudBackend = {
       if (channels.length)
         client().then((supabase) => channels.forEach((ch) => supabase.removeChannel(ch)))
     }
+  },
+
+  /** Drop all realtime channels so the Supabase WebSocket closes. */
+  async disconnect() {
+    if (!clientPromise) return
+    const supabase = await clientPromise
+    supabase.removeAllChannels()
+    // Don't null clientPromise — a re-scan lazily reuses the client.
   },
 }
 

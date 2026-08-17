@@ -47,7 +47,7 @@ function humanError(cause) {
 
 const OrdersContext = createContext(null)
 
-export function OrdersProvider({ children }) {
+export function OrdersProvider({ table: scopeTable, children }) {
   const [orders, setOrders] = useState([])
   const [status, setStatusState] = useState('connecting')
   const [error, setError] = useState(null)
@@ -55,7 +55,9 @@ export function OrdersProvider({ children }) {
 
   const refresh = useCallback(async () => {
     try {
-      const rows = await backend.list()
+      const rows = scopeTable
+        ? await backend.listForTable(scopeTable)
+        : await backend.list()
       if (!mounted.current) return
       setOrders(rows)
       setStatusState('ready')
@@ -67,17 +69,19 @@ export function OrdersProvider({ children }) {
       setStatusState('error')
       setError(humanError(cause))
     }
-  }, [])
+  }, [scopeTable])
 
   useEffect(() => {
     mounted.current = true
     refresh()
-    const unsubscribe = backend.subscribe(refresh)
+    const unsubscribe = scopeTable
+      ? backend.subscribeForTable(scopeTable, refresh)
+      : backend.subscribe(refresh)
     return () => {
       mounted.current = false
       unsubscribe?.()
     }
-  }, [refresh])
+  }, [refresh, scopeTable])
 
   // Reconnect when the tablet wakes or the network comes back.
   useEffect(() => {
