@@ -215,6 +215,13 @@ const localBackend = {
     return buildAnalyticsFromOrders(orders)
   },
 
+  async clearAnalytics() {
+    // Wipe the archive and remove completed orders from live storage.
+    writeJson(ARCHIVE_KEY, [])
+    writeLocal(readLocal().filter((o) => o.status !== 'completed'))
+    this.announce()
+  },
+
   /* ── notification ─────────────────────────────────────────────────────── */
 
   channel: null,
@@ -627,6 +634,15 @@ const cloudBackend = {
       .limit(5000)
     if (error) throw error
     return buildAnalyticsFromOrders(data.map(fromRow))
+  },
+
+  async clearAnalytics() {
+    const supabase = await client()
+    // Delete all archived orders and all completed orders.
+    const { error: e1 } = await supabase.from('orders').delete().eq('archived', true)
+    if (e1) throw e1
+    const { error: e2 } = await supabase.from('orders').delete().eq('status', 'completed')
+    if (e2) throw e2
   },
 
   /* ── notification ─────────────────────────────────────────────────────── */

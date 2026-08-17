@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { backend } from '../../store/backend'
 import { rupees } from '../../lib/format'
 
@@ -49,6 +49,8 @@ export default function Analytics({ open, onClose }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -129,6 +131,28 @@ export default function Analytics({ open, onClose }) {
     return Math.max(...data.hourly.map((h) => h.count), 1)
   }, [data])
 
+  async function handleClear() {
+    if (!confirmingClear) {
+      setConfirmingClear(true)
+      return
+    }
+    setClearing(true)
+    try {
+      await backend.clearAnalytics()
+      setData(null)
+      setConfirmingClear(false)
+      // Re-fetch to show empty state.
+      const fromIso = `${dateFrom}T00:00:00.000Z`
+      const toIso = `${dateTo}T23:59:59.999Z`
+      const res = await backend.queryAnalytics(fromIso, toIso)
+      setData(res)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setClearing(false)
+    }
+  }
+
   if (!open) return null
 
   return (
@@ -148,14 +172,48 @@ export default function Analytics({ open, onClose }) {
               Order and revenue metrics across the restaurant.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close analytics"
-            className="grid size-9 shrink-0 place-items-center border border-brass/40 text-brass hover:bg-brass/10 hover:text-parchment transition-colors"
-          >
-            <X className="size-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {confirmingClear ? (
+              <>
+                <span className="font-mono text-[10px] tracking-[0.1em] text-oxblood uppercase">
+                  Delete all analytics data?
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={clearing}
+                  className="px-3 py-1.5 font-mono text-[10px] tracking-[0.14em] uppercase border border-oxblood/60 text-oxblood hover:bg-oxblood/20 transition-colors disabled:opacity-50"
+                >
+                  {clearing ? 'Clearing…' : 'Yes, clear'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClear(false)}
+                  className="px-3 py-1.5 font-mono text-[10px] tracking-[0.14em] uppercase border border-brass/40 text-brass-dim hover:text-parchment transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClear}
+                title="Clear all analytics data"
+                className="flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-[0.14em] uppercase border border-oxblood/40 text-oxblood/80 hover:border-oxblood hover:text-oxblood transition-colors"
+              >
+                <Trash2 className="size-3" />
+                Clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close analytics"
+              className="grid size-9 shrink-0 place-items-center border border-brass/40 text-brass hover:bg-brass/10 hover:text-parchment transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </header>
 
         {/* Filters */}
