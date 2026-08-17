@@ -41,6 +41,8 @@ export default function OrderTicket({ order, now, onAdvance, onSetStatus, fresh 
   const minutes = Math.floor((now - new Date(order.placedAt).getTime()) / 60000)
   // A pending ticket sitting past 10 minutes is the one thing worth shouting about.
   const late = order.status !== 'completed' && order.status !== 'served' && minutes >= 10
+  // Orders placed by customers (via QR code) have name/phone — admin should not edit these.
+  const isCustomerOrder = !!(order.customerName || order.customerPhone)
 
   function startEdit() {
     setEditLines(order.lines.map((l) => ({ ...l })))
@@ -203,7 +205,7 @@ export default function OrderTicket({ order, now, onAdvance, onSetStatus, fresh 
                   amount={rupees(line.qty * line.unitPrice)}
                 >
                   {/* Void button for individual items */}
-                  {order.status !== 'completed' && (
+                  {order.status !== 'completed' && !isCustomerOrder && (
                     <div className="mt-1 pl-7">
                       {voidingKey === line.key ? (
                         <div className="space-y-1.5 anim-rise">
@@ -291,7 +293,7 @@ export default function OrderTicket({ order, now, onAdvance, onSetStatus, fresh 
                 Closed at {clockTime(order.history?.at(-1)?.at ?? order.placedAt)}
               </p>
             )}
-            {order.status !== 'completed' && !editing && (
+            {order.status !== 'completed' && !editing && !isCustomerOrder && (
               <button
                 type="button"
                 onClick={startEdit}

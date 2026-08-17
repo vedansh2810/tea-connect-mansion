@@ -41,7 +41,7 @@ function QrCard({ table }) {
       <p className="mt-2 font-mono text-[9px] tracking-[0.14em] text-ink-soft uppercase">
         Scan to see the menu & order
       </p>
-      <p className="mt-1 font-mono text-[8px] break-all text-ink-soft/70 print:block">{url}</p>
+
     </figure>
   )
 }

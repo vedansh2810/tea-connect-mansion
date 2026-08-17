@@ -12,7 +12,7 @@ import { useRoute } from './lib/useRoute'
 /**
  * Two screens off one URL:
  *
- *   ?table=4        the customer's menu for table 4
+ *   ?t=<token>      the customer's menu (table encoded in a signed token)
  *   ?view=admin     the kitchen pass
  *   (no table)      the scan prompt
  *

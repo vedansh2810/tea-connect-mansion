@@ -32,6 +32,12 @@ alter table orders add column if not exists total       integer;
 alter table orders add column if not exists customer_name  text not null default '';
 alter table orders add column if not exists customer_phone text not null default '';
 
+-- ── Soft-delete for analytics ───────────────────────────────────────────────
+-- When the admin clears completed orders from the pass, they are marked
+-- archived rather than deleted. Analytics still counts them; the live pass
+-- skips them.
+alter table orders add column if not exists archived boolean not null default false;
+
 -- ── Sold out ────────────────────────────────────────────────────────────────
 -- A row here means the kitchen has run out. Absence means available, so the
 -- common case costs nothing. The id matches `id` in src/data/menu.js.

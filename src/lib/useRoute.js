@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
+import { encodeTable, decodeTable } from './tableToken'
 
 /**
  * Two screens, one query string. Kept deliberately small — a router library
  * would outweigh what this app needs.
  *
- *   /menu?table=4   the customer's menu (also the bare "/" with ?table=)
- *   /admin          the kitchen pass, or /?view=admin
+ *   /menu?t=<token>   the customer's menu (table encoded in a signed token)
+ *   /admin            the kitchen pass, or /?view=admin
+ *
+ * The `t` parameter carries a signed token so customers cannot guess other
+ * tables by changing a number in the URL. See `tableToken.js`.
  */
 
 function parse() {
@@ -14,8 +18,10 @@ function parse() {
   const path = url.pathname.replace(/\/+$/, '')
 
   const view = path.endsWith('/admin') || params.get('view') === 'admin' ? 'admin' : 'menu'
-  const rawTable = params.get('table')
-  const table = rawTable && /^[A-Za-z0-9-]{1,6}$/.test(rawTable) ? rawTable : null
+
+  // Decode the signed token. Falls back to null (→ TableGate) if invalid.
+  const token = params.get('t')
+  const table = decodeTable(token)
 
   return { view, table, demo: params.has('demo') || import.meta.env.DEV }
 }
@@ -37,8 +43,11 @@ export function useRoute() {
     if (next.view === 'admin') url.searchParams.set('view', 'admin')
     else url.searchParams.delete('view')
 
-    if (next.table) url.searchParams.set('table', next.table)
-    else if ('table' in next) url.searchParams.delete('table')
+    // Clean up legacy `table` param if present.
+    url.searchParams.delete('table')
+
+    if (next.table) url.searchParams.set('t', encodeTable(next.table))
+    else if ('table' in next) url.searchParams.delete('t')
 
     window.history.pushState({}, '', url)
     setRoute(parse())
@@ -53,6 +62,6 @@ export function tableUrl(table) {
   url.pathname = url.pathname.replace(/\/admin\/?$/, '/')
   url.search = ''
   url.hash = ''
-  url.searchParams.set('table', String(table))
+  url.searchParams.set('t', encodeTable(String(table)))
   return url.toString()
 }

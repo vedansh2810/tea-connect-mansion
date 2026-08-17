@@ -141,13 +141,7 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
           <span>{RESTAURANT.vegNote}</span>
         </div>
 
-        <button
-          type="button"
-          onClick={onChangeTable}
-          className="mt-3 font-mono text-[9.5px] tracking-[0.14em] text-ink-soft uppercase underline decoration-brass/40 underline-offset-2 transition-colors hover:text-ink"
-        >
-          Not table {table}?
-        </button>
+
       </header>
 
       {/* ── Orders already sent from this table ─────────────────────────── */}

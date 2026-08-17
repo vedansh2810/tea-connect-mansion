@@ -25,6 +25,7 @@ export const isCloudConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY)
 /* ── local ──────────────────────────────────────────────────────────────── */
 
 const STORAGE_KEY = 'tcm.orders.v1'
+const ARCHIVE_KEY = 'tcm.orders.archive.v1'
 const SOLD_OUT_KEY = 'tcm.unavailable.v1'
 const WAITER_KEY = 'tcm.waiter.v1'
 const AUDIT_KEY = 'tcm.audit.v1'
@@ -101,7 +102,15 @@ const localBackend = {
   },
 
   async removeCompleted() {
-    writeLocal(readLocal().filter((order) => order.status !== 'completed'))
+    const all = readLocal()
+    const completed = all.filter((order) => order.status === 'completed')
+    const remaining = all.filter((order) => order.status !== 'completed')
+    // Archive completed orders so analytics can still see them.
+    if (completed.length > 0) {
+      const archive = readJson(ARCHIVE_KEY)
+      writeJson(ARCHIVE_KEY, [...completed, ...archive])
+    }
+    writeLocal(remaining)
     this.announce()
   },
 
@@ -197,7 +206,9 @@ const localBackend = {
   /* ── analytics ───────────────────────────────────────────────────────── */
 
   async queryAnalytics(dateFrom, dateTo) {
-    const orders = readLocal().filter((o) => {
+    // Combine live orders with archived (cleared completed) orders.
+    const allOrders = [...readLocal(), ...readJson(ARCHIVE_KEY)]
+    const orders = allOrders.filter((o) => {
       const t = new Date(o.placedAt).getTime()
       return t >= new Date(dateFrom).getTime() && t <= new Date(dateTo).getTime()
     })
@@ -350,6 +361,7 @@ const cloudBackend = {
     const { data, error } = await supabase
       .from('orders')
       .select('*')
+      .or('archived.is.null,archived.eq.false')
       .order('placed_at', { ascending: false })
       .limit(500)
     if (error) throw error
@@ -397,7 +409,8 @@ const cloudBackend = {
 
   async removeCompleted() {
     const supabase = await client()
-    const { error } = await supabase.from('orders').delete().eq('status', 'completed')
+    // Soft-delete: mark as archived so analytics can still see them.
+    const { error } = await supabase.from('orders').update({ archived: true }).eq('status', 'completed')
     if (error) throw error
   },
 
