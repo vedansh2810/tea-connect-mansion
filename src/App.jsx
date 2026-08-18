@@ -98,6 +98,51 @@ export default function App() {
     }
   }, [view, table, expired, handleExpire])
 
+  /* ── Free connections when customers leave or lock their phone ──────── */
+
+  const bgTimer = useRef(null)
+
+  useEffect(() => {
+    if (view === 'admin' || !table) return
+
+    // Close WebSocket when the tab is closed / navigated away.
+    // These are terminal events — no reconnection needed.
+    const onPageHide = () => backend.disconnect()
+
+    // When the phone is locked or the tab is backgrounded, start a grace
+    // period. If the customer doesn't return within BACKGROUND_GRACE_MS,
+    // drop the Realtime channels to free a connection slot. If they come
+    // back sooner, cancel the timer so existing channels stay alive and
+    // no re-subscribe is needed.
+    const BACKGROUND_GRACE_MS = 2 * 60 * 1000 // 2 minutes
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        bgTimer.current = setTimeout(() => {
+          backend.disconnect()
+          bgTimer.current = null
+        }, BACKGROUND_GRACE_MS)
+      } else {
+        // Page came back — cancel deferred disconnect.
+        if (bgTimer.current) {
+          clearTimeout(bgTimer.current)
+          bgTimer.current = null
+        }
+      }
+    }
+
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('beforeunload', onPageHide)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('beforeunload', onPageHide)
+      document.removeEventListener('visibilitychange', onVisibility)
+      if (bgTimer.current) clearTimeout(bgTimer.current)
+    }
+  }, [view, table])
+
   /* ── Admin view ──────────────────────────────────────────────────────── */
 
   if (view === 'admin') {
