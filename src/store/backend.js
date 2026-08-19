@@ -118,6 +118,19 @@ const localBackend = {
     this.announce()
   },
 
+  async removeOrdersByIds(ids) {
+    const idSet = new Set(ids)
+    const all = readLocal()
+    const toArchive = all.filter((order) => idSet.has(order.id))
+    const remaining = all.filter((order) => !idSet.has(order.id))
+    if (toArchive.length > 0) {
+      const archive = readJson(ARCHIVE_KEY)
+      writeJson(ARCHIVE_KEY, [...toArchive, ...archive])
+    }
+    writeLocal(remaining)
+    this.announce()
+  },
+
   async removeAll() {
     writeLocal([])
     this.announce()
@@ -444,6 +457,13 @@ const cloudBackend = {
     const supabase = await client()
     // Soft-delete: mark as archived so analytics can still see them.
     const { error } = await supabase.from('orders').update({ archived: true }).eq('status', 'completed')
+    if (error) throw error
+  },
+
+  async removeOrdersByIds(ids) {
+    if (!ids.length) return
+    const supabase = await client()
+    const { error } = await supabase.from('orders').update({ archived: true }).in('id', ids)
     if (error) throw error
   },
 

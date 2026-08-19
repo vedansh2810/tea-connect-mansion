@@ -228,6 +228,21 @@ export function OrdersProvider({ table: scopeTable, children }) {
     }
   }, [refresh])
 
+  const markTablePaid = useCallback(async (tableNumber) => {
+    const ids = orders
+      .filter((o) => o.status === 'completed' && o.table === String(tableNumber))
+      .map((o) => o.id)
+    if (ids.length === 0) return
+    // Optimistic
+    setOrders((rows) => rows.filter((row) => !ids.includes(row.id)))
+    try {
+      await backend.removeOrdersByIds(ids)
+    } catch (cause) {
+      setError(humanError(cause))
+      refresh()
+    }
+  }, [orders, refresh])
+
   const resetAll = useCallback(async () => {
     setOrders([])
     try {
@@ -246,6 +261,7 @@ export function OrdersProvider({ table: scopeTable, children }) {
       editOrderLines,
       voidItem,
       clearCompleted,
+      markTablePaid,
       resetAll,
       refresh,
       mode: backend.mode,
@@ -253,7 +269,7 @@ export function OrdersProvider({ table: scopeTable, children }) {
       error,
       dismissError: () => setError(null),
     }),
-    [orders, placeOrder, setStatus, advance, editOrderLines, voidItem, clearCompleted, resetAll, refresh, status, error],
+    [orders, placeOrder, setStatus, advance, editOrderLines, voidItem, clearCompleted, markTablePaid, resetAll, refresh, status, error],
   )
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>

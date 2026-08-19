@@ -8,11 +8,11 @@ import {
   MonitorSmartphone,
   QrCode,
   Settings,
-  Trash2,
   WifiOff,
   X,
 } from 'lucide-react'
 import OrderTicket from './OrderTicket'
+import CombinedBill from './CombinedBill'
 import TableCodes from './TableCodes'
 import SoldOut from './SoldOut'
 import Analytics from './Analytics'
@@ -83,7 +83,7 @@ function ConnectionBadge({ mode, connection, onRetry }) {
 }
 
 export default function AdminDashboard({ onOpenMenu }) {
-  const { orders, advance, setStatus, clearCompleted, mode, connection, error, dismissError, refresh } =
+  const { orders, advance, setStatus, clearCompleted, markTablePaid, mode, connection, error, dismissError, refresh } =
     useOrders()
   const { arm, ring, ringWaiter, armed, muted, setMuted } = useChime()
   const { count: soldOutCount } = useAvailability()
@@ -172,16 +172,40 @@ export default function AdminDashboard({ onOpenMenu }) {
   )
 
   const visible = useMemo(() => {
+    // Completed orders are rendered as combined bills, not individual tickets.
     const rows =
       filter === 'all'
-        ? orders
+        ? orders.filter((order) => order.status !== 'completed')
         : filter === 'live'
           ? orders.filter((order) => order.status !== 'completed')
-          : orders.filter((order) => order.status === filter)
+          : filter === 'completed'
+            ? [] // Combined bills handle this filter
+            : orders.filter((order) => order.status === filter)
     // Oldest first inside the live view: the pass works front to back.
     return filter === 'live'
       ? [...rows].sort((a, b) => new Date(a.placedAt) - new Date(b.placedAt))
       : rows
+  }, [orders, filter])
+
+  // Group completed orders by table for combined bills.
+  const completedBills = useMemo(() => {
+    const showCompleted = filter === 'live' || filter === 'completed' || filter === 'all'
+    if (!showCompleted) return []
+
+    const completed = orders.filter((o) => o.status === 'completed')
+    const grouped = {}
+    completed.forEach((order) => {
+      if (!grouped[order.table]) grouped[order.table] = []
+      grouped[order.table].push(order)
+    })
+    // Sort tables numerically where possible, then alphabetically.
+    return Object.entries(grouped)
+      .sort(([a], [b]) => {
+        const na = Number(a), nb = Number(b)
+        if (!isNaN(na) && !isNaN(nb)) return na - nb
+        return a.localeCompare(b)
+      })
+      .map(([table, tableOrders]) => ({ table, orders: tableOrders }))
   }, [orders, filter])
 
   return (
@@ -324,14 +348,9 @@ export default function AdminDashboard({ onOpenMenu }) {
               </button>
             ))}
             {counts.completed > 0 && (
-              <button
-                type="button"
-                onClick={clearCompleted}
-                className="flex items-center gap-1.5 border border-parchment/20 px-2.5 py-1.5 font-mono text-[9.5px] tracking-[0.14em] text-parchment/60 uppercase transition-colors hover:border-oxblood hover:text-oxblood"
-              >
-                <Trash2 className="size-3" aria-hidden="true" />
-                Clear {counts.completed} closed
-              </button>
+              <span className="flex items-center gap-1.5 border border-parchment/20 px-2.5 py-1.5 font-mono text-[9.5px] tracking-[0.14em] text-parchment/45 uppercase">
+                {counts.completed} unpaid
+              </span>
             )}
           </div>
         </div>
@@ -369,7 +388,7 @@ export default function AdminDashboard({ onOpenMenu }) {
 
       {/* ── The rail ────────────────────────────────────────────────────── */}
       <main className="mx-auto max-w-[1600px] px-5 py-6">
-        {visible.length === 0 ? (
+        {visible.length === 0 && completedBills.length === 0 ? (
           <div className="py-24 text-center">
             <p className="font-display text-xl tracking-[0.08em] text-parchment/85">
               {filter === 'live' ? 'No orders on the pass.' : `Nothing ${filter}.`}
@@ -406,6 +425,14 @@ export default function AdminDashboard({ onOpenMenu }) {
                 fresh={freshIds.has(order.id)}
                 onAdvance={advance}
                 onSetStatus={setStatus}
+              />
+            ))}
+            {completedBills.map((bill) => (
+              <CombinedBill
+                key={`bill-${bill.table}`}
+                tableNumber={bill.table}
+                orders={bill.orders}
+                onMarkPaid={markTablePaid}
               />
             ))}
           </div>
