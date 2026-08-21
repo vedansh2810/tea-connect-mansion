@@ -1,26 +1,20 @@
-import { useState } from 'react'
-import { QrCode } from 'lucide-react'
+import { QrCode, ScanLine } from 'lucide-react'
 import { CrownRule, DotTriad, OrnateFrame } from '../ornament/Ornaments'
 import { RESTAURANT } from '../../data/menu'
 
 /**
- * Shown when the URL carries no table. The QR code on the table is the way
- * in; the manual field is the fallback for a smudged or missing sticker, not
- * the headline.
+ * Shown when the URL carries no table. The QR code on the table is the only
+ * way in — scanning it opens the menu with the table already set.
  */
 export default function TableGate({ onTable, demo, onOpenPass }) {
-  const [value, setValue] = useState('')
-  const [error, setError] = useState('')
-
-  function submit(event) {
-    event.preventDefault()
-    const table = value.trim()
-    if (!/^[A-Za-z0-9-]{1,6}$/.test(table)) {
-      setError('Table numbers are up to 6 letters or digits, like 4 or T12.')
-      return
+  function handleScan() {
+    // On mobile devices, opening a QR scanner is typically done by the camera app.
+    // Guide the user to use their phone's native camera or QR scanner.
+    // If running in a context where we can trigger a scan, we would do so here.
+    // For now, prompt the user to use their device camera.
+    if (navigator.clipboard) {
+      window.open('intent://scan/#Intent;scheme=zxing;package=com.google.zxing.client.android;end', '_blank')
     }
-    setError('')
-    onTable(table)
   }
 
   return (
@@ -60,37 +54,15 @@ export default function TableGate({ onTable, demo, onOpenPass }) {
           <span className="rule-brass flex-1" />
         </div>
 
-        <form onSubmit={submit} className="mt-7 text-left">
-          <label
-            htmlFor="table"
-            className="font-mono text-[10px] tracking-[0.22em] text-ink-soft uppercase"
-          >
-            No code to scan? Enter your table
-          </label>
-          <div className="mt-2 flex gap-2">
-            <input
-              id="table"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              inputMode="numeric"
-              autoComplete="off"
-              placeholder="4"
-              aria-describedby={error ? 'table-error' : undefined}
-              className="w-full border border-brass/40 bg-ivory px-3 py-2.5 font-mono text-base text-ink placeholder:text-ink-soft/45 focus:border-brass focus:outline-none"
-            />
-            <button
-              type="submit"
-              className="shrink-0 bg-ink px-4 py-2.5 font-mono text-[11px] tracking-[0.16em] text-parchment uppercase transition-colors hover:bg-oxblood"
-            >
-              Open menu
-            </button>
-          </div>
-          {error && (
-            <p id="table-error" role="alert" className="mt-2 text-xs text-oxblood">
-              {error}
-            </p>
-          )}
-        </form>
+        {/* Scan QR Code button */}
+        <button
+          type="button"
+          onClick={handleScan}
+          className="mt-7 inline-flex w-full items-center justify-center gap-2 bg-ink px-4 py-3 font-mono text-[11px] tracking-[0.16em] text-parchment uppercase transition-colors hover:bg-oxblood"
+        >
+          <ScanLine className="size-4" aria-hidden="true" />
+          Scan QR Code
+        </button>
 
         {demo && (
           <div className="mt-8 border-t border-brass/25 pt-5">
