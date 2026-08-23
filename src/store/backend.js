@@ -299,6 +299,13 @@ const localBackend = {
   disconnect() {
     // No persistent connection in local mode.
   },
+
+  /* ── auth (no-op in local mode — falls back to PIN gate) ─────────────── */
+
+  async signIn() { return null },
+  async signOut() {},
+  async getUser() { return null },
+  onAuthStateChange() { return () => {} },
 }
 
 /* ── Analytics helper (shared by both backends) ────────────────────────── */
@@ -357,7 +364,7 @@ function client() {
   if (!clientPromise) {
     clientPromise = import('@supabase/supabase-js').then(({ createClient }) =>
       createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { persistSession: false },
+        auth: { persistSession: true },
         realtime: { params: { eventsPerSecond: 5 } },
       }),
     )
@@ -764,6 +771,38 @@ const cloudBackend = {
     const supabase = await clientPromise
     supabase.removeAllChannels()
     // Don't null clientPromise — a re-scan lazily reuses the client.
+  },
+
+  /* ── auth ─────────────────────────────────────────────────────────────── */
+
+  async signIn(email, password) {
+    const supabase = await client()
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    return data
+  },
+
+  async signOut() {
+    const supabase = await client()
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  },
+
+  async getUser() {
+    const supabase = await client()
+    const { data: { user } } = await supabase.auth.getUser()
+    return user
+  },
+
+  onAuthStateChange(callback) {
+    let subscription = null
+    client().then((supabase) => {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        callback(session?.user ?? null)
+      })
+      subscription = data.subscription
+    })
+    return () => subscription?.unsubscribe()
   },
 }
 

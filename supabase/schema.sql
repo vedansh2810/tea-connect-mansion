@@ -167,104 +167,119 @@ create index if not exists audit_order_idx on order_audit_log (order_id);
 
 -- ── Access ──────────────────────────────────────────────────────────────────
 --
--- READ THIS BEFORE GOING LIVE.
+-- PRODUCTION policies.
 --
--- The policies below are the DEMO set. They let anyone holding the anon key —
--- which is public, it ships in the JavaScript — place, read, change and delete
--- orders. That is what makes the app work with no login, and it is fine for a
--- pilot: the data is table numbers and dish names.
+-- Guests (the anon role, which is what every customer phone uses) may place
+-- an order and read orders. Only signed-in staff (the authenticated role)
+-- may change or delete one, manage the menu, toggle sold-out items, or
+-- dismiss waiter calls.
 --
--- It also means someone who finds your pass URL could mark every order
--- completed. Before this runs a real service, do BOTH of:
+-- The anon key ships inside the JavaScript bundle and is public by design.
+-- These policies ensure that even someone who extracts it can only do what a
+-- customer should be able to do.
 --
---   1. Put the pass behind host-level access control (DEPLOY.md section 6).
---   2. Swap to the PRODUCTION policies at the bottom of this file, and add a
---      staff login.
+-- To create a staff account: Supabase dashboard → Authentication → Users →
+-- "Add user". Use email + password. See DEPLOY.md section 10.
 --
+
+-- ── Orders ──────────────────────────────────────────────────────────────────
+-- Guests can place and read orders. Only staff can update status or archive.
+
 alter table orders enable row level security;
 
 drop policy if exists "demo: anyone can place"  on orders;
 drop policy if exists "demo: anyone can read"   on orders;
 drop policy if exists "demo: anyone can update" on orders;
 drop policy if exists "demo: anyone can delete" on orders;
+drop policy if exists "guests can place"        on orders;
+drop policy if exists "guests can read"         on orders;
+drop policy if exists "staff can update"        on orders;
+drop policy if exists "staff can delete"        on orders;
 
-create policy "demo: anyone can place"  on orders for insert to anon, authenticated with check (true);
-create policy "demo: anyone can read"   on orders for select to anon, authenticated using (true);
-create policy "demo: anyone can update" on orders for update to anon, authenticated using (true);
-create policy "demo: anyone can delete" on orders for delete to anon, authenticated using (true);
+create policy "guests can place"  on orders for insert to anon, authenticated with check (true);
+create policy "guests can read"   on orders for select to anon, authenticated using (true);
+create policy "staff can update"  on orders for update to authenticated using (true);
+create policy "staff can delete"  on orders for delete to authenticated using (true);
 
--- Sold-out list. Every phone must be able to read it; only the pass should be
--- writing it, which is what the production policies below enforce.
+-- ── Sold-out list ───────────────────────────────────────────────────────────
+-- Every phone reads it so the menu greys out sold-out items. Only staff may
+-- mark something sold out or put it back.
+
 alter table unavailable_items enable row level security;
 
 drop policy if exists "sold out: anyone can read"  on unavailable_items;
 drop policy if exists "sold out: anyone can write" on unavailable_items;
 drop policy if exists "sold out: anyone can clear" on unavailable_items;
+drop policy if exists "guests read sold out"       on unavailable_items;
+drop policy if exists "staff mark sold out"        on unavailable_items;
+drop policy if exists "staff restore"              on unavailable_items;
 
-create policy "sold out: anyone can read"  on unavailable_items for select to anon, authenticated using (true);
-create policy "sold out: anyone can write" on unavailable_items for insert to anon, authenticated with check (true);
-create policy "sold out: anyone can clear" on unavailable_items for delete to anon, authenticated using (true);
+create policy "guests read sold out"  on unavailable_items for select to anon, authenticated using (true);
+create policy "staff mark sold out"   on unavailable_items for insert to authenticated with check (true);
+create policy "staff restore"         on unavailable_items for delete to authenticated using (true);
 
--- Menu catalog: everyone reads, demo lets everyone write.
+-- ── Menu catalog ────────────────────────────────────────────────────────────
+-- Everyone reads the menu. Only staff can create, edit, or delete items,
+-- groups, and sections.
+
 alter table menu_sections enable row level security;
 alter table menu_groups enable row level security;
 alter table menu_items enable row level security;
 
-drop policy if exists "menu: anyone can read sections" on menu_sections;
+drop policy if exists "menu: anyone can read sections"  on menu_sections;
 drop policy if exists "menu: anyone can write sections" on menu_sections;
-drop policy if exists "menu: anyone can read groups" on menu_groups;
+drop policy if exists "menu: guests read sections"      on menu_sections;
+drop policy if exists "menu: staff write sections"      on menu_sections;
+
+create policy "menu: guests read sections" on menu_sections for select to anon, authenticated using (true);
+create policy "menu: staff write sections" on menu_sections for all to authenticated using (true) with check (true);
+
+drop policy if exists "menu: anyone can read groups"  on menu_groups;
 drop policy if exists "menu: anyone can write groups" on menu_groups;
-drop policy if exists "menu: anyone can read items" on menu_items;
+drop policy if exists "menu: guests read groups"      on menu_groups;
+drop policy if exists "menu: staff write groups"      on menu_groups;
+
+create policy "menu: guests read groups" on menu_groups for select to anon, authenticated using (true);
+create policy "menu: staff write groups" on menu_groups for all to authenticated using (true) with check (true);
+
+drop policy if exists "menu: anyone can read items"  on menu_items;
 drop policy if exists "menu: anyone can write items" on menu_items;
+drop policy if exists "menu: guests read items"      on menu_items;
+drop policy if exists "menu: staff write items"      on menu_items;
 
-create policy "menu: anyone can read sections" on menu_sections for select to anon, authenticated using (true);
-create policy "menu: anyone can write sections" on menu_sections for all to anon, authenticated using (true) with check (true);
-create policy "menu: anyone can read groups" on menu_groups for select to anon, authenticated using (true);
-create policy "menu: anyone can write groups" on menu_groups for all to anon, authenticated using (true) with check (true);
-create policy "menu: anyone can read items" on menu_items for select to anon, authenticated using (true);
-create policy "menu: anyone can write items" on menu_items for all to anon, authenticated using (true) with check (true);
+create policy "menu: guests read items" on menu_items for select to anon, authenticated using (true);
+create policy "menu: staff write items" on menu_items for all to authenticated using (true) with check (true);
 
--- Waiter calls: customers can place them, everyone can read and manage.
+-- ── Waiter calls ────────────────────────────────────────────────────────────
+-- Customers can place a call and see calls. Only staff can acknowledge,
+-- dismiss, or delete calls.
+
 alter table waiter_calls enable row level security;
 
-drop policy if exists "calls: anyone can place" on waiter_calls;
-drop policy if exists "calls: anyone can read" on waiter_calls;
+drop policy if exists "calls: anyone can place"  on waiter_calls;
+drop policy if exists "calls: anyone can read"   on waiter_calls;
 drop policy if exists "calls: anyone can update" on waiter_calls;
 drop policy if exists "calls: anyone can delete" on waiter_calls;
+drop policy if exists "calls: guests can place"  on waiter_calls;
+drop policy if exists "calls: guests can read"   on waiter_calls;
+drop policy if exists "calls: staff can update"  on waiter_calls;
+drop policy if exists "calls: staff can delete"  on waiter_calls;
 
-create policy "calls: anyone can place"  on waiter_calls for insert to anon, authenticated with check (true);
-create policy "calls: anyone can read"   on waiter_calls for select to anon, authenticated using (true);
-create policy "calls: anyone can update" on waiter_calls for update to anon, authenticated using (true);
-create policy "calls: anyone can delete" on waiter_calls for delete to anon, authenticated using (true);
+create policy "calls: guests can place"  on waiter_calls for insert to anon, authenticated with check (true);
+create policy "calls: guests can read"   on waiter_calls for select to anon, authenticated using (true);
+create policy "calls: staff can update"  on waiter_calls for update to authenticated using (true);
+create policy "calls: staff can delete"  on waiter_calls for delete to authenticated using (true);
 
--- Audit log: everyone can read and write in demo mode.
+-- ── Audit log ───────────────────────────────────────────────────────────────
+-- Everyone can read and write audit entries. Writes happen alongside order
+-- placement (which guests do), so the anon role needs INSERT.
+
 alter table order_audit_log enable row level security;
 
-drop policy if exists "audit: anyone can read" on order_audit_log;
+drop policy if exists "audit: anyone can read"  on order_audit_log;
 drop policy if exists "audit: anyone can write" on order_audit_log;
+drop policy if exists "audit: guests can read"  on order_audit_log;
+drop policy if exists "audit: guests can write" on order_audit_log;
 
-create policy "audit: anyone can read"  on order_audit_log for select to anon, authenticated using (true);
-create policy "audit: anyone can write" on order_audit_log for insert to anon, authenticated with check (true);
-
--- ── PRODUCTION policies ─────────────────────────────────────────────────────
---
--- Guests may place an order and read orders; only signed-in staff may change
--- or delete one. Requires wiring Supabase auth into the pass — see DEPLOY.md
--- section 10. Drop the demo policies above before creating these.
---
--- create policy "guests can place" on orders
---   for insert to anon with check (true);
--- create policy "guests can read"  on orders
---   for select to anon using (true);
--- create policy "staff can update" on orders
---   for update to authenticated using (true);
--- create policy "staff can delete" on orders
---   for delete to authenticated using (true);
---
--- -- Guests read the sold-out list; only staff change it.
--- create policy "guests read sold out"  on unavailable_items
---   for select to anon, authenticated using (true);
--- create policy "staff mark sold out"   on unavailable_items
---   for insert to authenticated with check (true);
--- create policy "staff restore"         on unavailable_items
---   for delete to authenticated using (true);
+create policy "audit: guests can read"  on order_audit_log for select to anon, authenticated using (true);
+create policy "audit: guests can write" on order_audit_log for insert to anon, authenticated with check (true);

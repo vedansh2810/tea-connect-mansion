@@ -1,33 +1,177 @@
-import { useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { CrownRule } from '../ornament/Ornaments'
+import { backend, isCloudConfigured } from '../../store/backend'
 
 /**
- * A PIN on the kitchen pass.
+ * Gate on the kitchen pass.
  *
- * Set VITE_PASS_PIN at build time to require it. Staff enter it once per
- * device and the device is remembered, so a kitchen tablet is not asking for a
- * code every morning.
+ * Cloud mode — Supabase Auth (email + password). The Supabase client upgrades
+ * from the public anon role to the authenticated role, which unlocks the
+ * production RLS policies: update/delete orders, manage the menu, toggle
+ * sold-out items, acknowledge waiter calls.
  *
- * Be clear about what this is: the PIN ships inside the JavaScript bundle, so
- * anyone determined can read it out of the source. It stops a curious customer
- * poking at `?view=admin` and closing everybody's bills — it is not real
- * security. For that, put the pass behind host-level access control
- * (Cloudflare Access, or your host's password protection) or wire up proper
- * staff accounts. See DEPLOY.md.
+ * Local mode — client-side PIN (VITE_PASS_PIN). This is the old behaviour.
+ * The PIN ships in the bundle and stops a curious customer, not a determined
+ * attacker. Fine for a single-tablet setup.
  *
- * With no PIN configured the pass opens, but says so on screen rather than
- * pretending to be protected.
+ * The pass exports a `usePassAuth` hook so any component inside PassGate can
+ * access the current user and the signOut function.
  */
+
+/* ── Shared auth context ─────────────────────────────────────────────────── */
+
+const PassAuthContext = createContext({ user: null, signOut: () => {} })
+
+export function usePassAuth() {
+  return useContext(PassAuthContext)
+}
+
+export function isPassProtected() {
+  return isCloudConfigured || Boolean(import.meta.env.VITE_PASS_PIN)
+}
+
+/* ── Cloud gate (Supabase Auth) ──────────────────────────────────────────── */
+
+function CloudGate({ children }) {
+  // undefined → loading, null → not signed in, object → signed in
+  const [user, setUser] = useState(undefined)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    backend.getUser().then((u) => setUser(u ?? null)).catch(() => setUser(null))
+    const unsubscribe = backend.onAuthStateChange((u) => setUser(u ?? null))
+    return unsubscribe
+  }, [])
+
+  const handleSignOut = async () => {
+    try {
+      await backend.signOut()
+      setUser(null)
+    } catch {
+      // If sign-out fails, clear local state anyway so the gate shows.
+      setUser(null)
+    }
+  }
+
+  /* ── Loading ──────────────────────────────────────────────────────────── */
+
+  if (user === undefined) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-ink-rail">
+        <p className="font-mono text-[10px] tracking-[0.2em] text-brass-light/70 uppercase">
+          Checking session…
+        </p>
+      </main>
+    )
+  }
+
+  /* ── Authenticated ────────────────────────────────────────────────────── */
+
+  if (user) {
+    return (
+      <PassAuthContext.Provider value={{ user, signOut: handleSignOut }}>
+        {children}
+      </PassAuthContext.Provider>
+    )
+  }
+
+  /* ── Login form ───────────────────────────────────────────────────────── */
+
+  async function submit(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      await backend.signIn(email.trim(), password)
+      // onAuthStateChange will pick up the session and set `user`.
+    } catch (cause) {
+      const msg = cause?.message ?? ''
+      if (/invalid.*credentials|invalid.*password|user not found/i.test(msg)) {
+        setError('Wrong email or password.')
+      } else if (/email.*required|password.*required/i.test(msg)) {
+        setError('Enter both email and password.')
+      } else if (/fetch|network/i.test(msg)) {
+        setError('Cannot reach the server. Check the connection.')
+      } else {
+        setError('Sign-in failed. Try again.')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-ink-rail px-6 py-16">
+      <div className="w-full max-w-xs text-center">
+        <h1 className="font-display text-base font-medium tracking-[0.18em] text-parchment uppercase">
+          Tea Connect Mansion
+        </h1>
+        <p className="mt-1 font-mono text-[9.5px] tracking-[0.26em] text-brass-light/80 uppercase">
+          The pass
+        </p>
+        <div className="mx-auto mt-4 w-24">
+          <CrownRule dark className="anim-draw" />
+        </div>
+
+        <Lock className="mx-auto mt-9 size-7 text-brass-light/70" strokeWidth={1.4} aria-hidden="true" />
+        <h2 className="mt-5 font-display text-lg tracking-[0.06em] text-parchment">Staff sign in</h2>
+        <p className="mx-auto mt-2 max-w-[15rem] font-body text-sm leading-relaxed text-parchment/60">
+          Sign in to see and manage incoming orders.
+        </p>
+
+        <form onSubmit={submit} className="mt-7 space-y-3">
+          <label htmlFor="pass-email" className="sr-only">Email</label>
+          <input
+            id="pass-email"
+            type="email"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setError(null) }}
+            placeholder="Email"
+            autoComplete="email"
+            autoFocus
+            className="w-full border border-brass/45 bg-ink-deep px-3 py-3 text-center font-mono text-sm tracking-[0.06em] text-parchment placeholder:text-parchment/30 focus:border-brass focus:outline-none"
+          />
+
+          <label htmlFor="pass-password" className="sr-only">Password</label>
+          <input
+            id="pass-password"
+            type="password"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(null) }}
+            placeholder="Password"
+            autoComplete="current-password"
+            className="w-full border border-brass/45 bg-ink-deep px-3 py-3 text-center font-mono text-sm tracking-[0.06em] text-parchment placeholder:text-parchment/30 focus:border-brass focus:outline-none"
+          />
+
+          {error && (
+            <p role="alert" className="font-mono text-[10px] tracking-[0.14em] text-oxblood uppercase">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-brass px-4 py-3 font-mono text-[11px] tracking-[0.2em] text-ink-deep uppercase transition-colors hover:bg-brass-light disabled:opacity-50"
+          >
+            {submitting ? 'Signing in…' : 'Open the pass'}
+          </button>
+        </form>
+      </div>
+    </main>
+  )
+}
+
+/* ── PIN gate (local mode fallback) ──────────────────────────────────────── */
 
 const PIN = import.meta.env.VITE_PASS_PIN
 const REMEMBER_KEY = 'tcm.pass.unlocked'
 
-export function isPassProtected() {
-  return Boolean(PIN)
-}
-
-export default function PassGate({ children }) {
+function PinGate({ children }) {
   const [unlocked, setUnlocked] = useState(
     () => !PIN || localStorage.getItem(REMEMBER_KEY) === PIN,
   )
@@ -99,4 +243,11 @@ export default function PassGate({ children }) {
       </div>
     </main>
   )
+}
+
+/* ── Exports ─────────────────────────────────────────────────────────────── */
+
+export default function PassGate({ children }) {
+  if (isCloudConfigured) return <CloudGate>{children}</CloudGate>
+  return <PinGate>{children}</PinGate>
 }
