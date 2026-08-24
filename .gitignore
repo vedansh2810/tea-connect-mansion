@@ -4,9 +4,13 @@ dist-ssr
 .DS_Store
 .vite
 
-# Local configuration. `*.local` covers .env.local; the second line covers the
-# backup `npm run setup` writes, which holds the same keys.
-*.local
+# Local configuration. Never commit secrets.
+# VITE_* vars are embedded in the JS bundle — they are NOT secret.
+# The Supabase service_role key must NEVER appear here or in the code.
+.env
+.env.local
+.env.production
+.env.*.local
 *.local.bak
 
 # Working files from transcribing the printed menu
