@@ -306,6 +306,10 @@ const localBackend = {
   async signOut() {},
   async getUser() { return null },
   onAuthStateChange() { return () => {} },
+
+  async logSecurity(event, detail) {
+    if (import.meta.env.DEV) console.info('[security]', event, detail)
+  },
 }
 
 /* ── Analytics helper (shared by both backends) ────────────────────────── */
@@ -803,6 +807,21 @@ const cloudBackend = {
       subscription = data.subscription
     })
     return () => subscription?.unsubscribe()
+  },
+
+  async logSecurity(event, detail = {}) {
+    try {
+      const supabase = await client()
+      await supabase.from('security_log').insert({
+        event,
+        email: detail.email ?? '',
+        user_agent: navigator.userAgent ?? '',
+        detail,
+      })
+    } catch {
+      // Logging must never block the auth flow.
+      if (import.meta.env.DEV) console.warn('[security] failed to write log', event, detail)
+    }
   },
 }
 

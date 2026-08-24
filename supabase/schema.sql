@@ -283,3 +283,32 @@ drop policy if exists "audit: guests can write" on order_audit_log;
 
 create policy "audit: guests can read"  on order_audit_log for select to anon, authenticated using (true);
 create policy "audit: guests can write" on order_audit_log for insert to anon, authenticated with check (true);
+
+-- ── Security log ────────────────────────────────────────────────────────────
+-- Every authentication attempt is recorded here so suspicious activity —
+-- brute-force logins, credential stuffing, off-hours access — can be spotted.
+-- The pass does not surface this table; query it from the Supabase dashboard
+-- or the SQL editor when reviewing incidents.
+
+create table if not exists security_log (
+  id          serial primary key,
+  event       text not null
+                check (event in ('sign_in_success','sign_in_failure','sign_out','rate_limited')),
+  email       text not null default '',
+  ip          text not null default '',
+  user_agent  text not null default '',
+  detail      jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists security_log_created_idx on security_log (created_at desc);
+
+alter table security_log enable row level security;
+
+drop policy if exists "security: anyone can log"  on security_log;
+drop policy if exists "security: staff can read"  on security_log;
+
+-- Anyone can write (logging happens before auth succeeds).
+create policy "security: anyone can log"  on security_log for insert to anon, authenticated with check (true);
+-- Only staff can review the log.
+create policy "security: staff can read"  on security_log for select to authenticated using (true);

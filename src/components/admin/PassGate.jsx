@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { CrownRule } from '../ornament/Ornaments'
 import { backend, isCloudConfigured } from '../../store/backend'
@@ -41,6 +41,33 @@ function CloudGate({ children }) {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  /* ── Rate limiting: 5 failures → 60 s lockout ───────────────────────── */
+
+  const MAX_FAILURES = 5
+  const LOCKOUT_SECONDS = 60
+
+  const failures = useRef(0)
+  const [lockedUntil, setLockedUntil] = useState(null)
+  const [lockCountdown, setLockCountdown] = useState(0)
+
+  // Tick the countdown every second while locked out.
+  useEffect(() => {
+    if (!lockedUntil) return
+    const tick = () => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setLockedUntil(null)
+        setLockCountdown(0)
+        setError(null)
+      } else {
+        setLockCountdown(remaining)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [lockedUntil])
+
   useEffect(() => {
     backend.getUser().then((u) => setUser(u ?? null)).catch(() => setUser(null))
     const unsubscribe = backend.onAuthStateChange((u) => setUser(u ?? null))
@@ -50,9 +77,9 @@ function CloudGate({ children }) {
   const handleSignOut = async () => {
     try {
       await backend.signOut()
+      backend.logSecurity('sign_out', { email: user?.email })
       setUser(null)
     } catch {
-      // If sign-out fails, clear local state anyway so the gate shows.
       setUser(null)
     }
   }
@@ -83,12 +110,19 @@ function CloudGate({ children }) {
 
   async function submit(event) {
     event.preventDefault()
+
+    // Enforce lockout
+    if (lockedUntil && Date.now() < lockedUntil) return
+
     setSubmitting(true)
     setError(null)
     try {
       await backend.signIn(email.trim(), password)
-      // onAuthStateChange will pick up the session and set `user`.
+      failures.current = 0
+      backend.logSecurity('sign_in_success', { email: email.trim() })
     } catch (cause) {
+      failures.current += 1
+
       const msg = cause?.message ?? ''
       if (/invalid.*credentials|invalid.*password|user not found/i.test(msg)) {
         setError('Wrong email or password.')
@@ -98,6 +132,25 @@ function CloudGate({ children }) {
         setError('Cannot reach the server. Check the connection.')
       } else {
         setError('Sign-in failed. Try again.')
+      }
+
+      backend.logSecurity('sign_in_failure', {
+        email: email.trim(),
+        reason: msg,
+        attempt: failures.current,
+      })
+
+      // Lock out after too many consecutive failures
+      if (failures.current >= MAX_FAILURES) {
+        const until = Date.now() + LOCKOUT_SECONDS * 1000
+        setLockedUntil(until)
+        setError(`Too many failed attempts. Try again in ${LOCKOUT_SECONDS} seconds.`)
+        backend.logSecurity('rate_limited', {
+          email: email.trim(),
+          attempts: failures.current,
+          lockoutSeconds: LOCKOUT_SECONDS,
+        })
+        failures.current = 0
       }
     } finally {
       setSubmitting(false)
@@ -155,10 +208,14 @@ function CloudGate({ children }) {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !!lockedUntil}
             className="w-full bg-brass px-4 py-3 font-mono text-[11px] tracking-[0.2em] text-ink-deep uppercase transition-colors hover:bg-brass-light disabled:opacity-50"
           >
-            {submitting ? 'Signing in…' : 'Open the pass'}
+            {lockedUntil
+              ? `Locked — ${lockCountdown}s`
+              : submitting
+                ? 'Signing in…'
+                : 'Open the pass'}
           </button>
         </form>
       </div>
