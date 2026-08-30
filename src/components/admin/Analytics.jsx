@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Trash2, X } from 'lucide-react'
+import { Download, Trash2, X } from 'lucide-react'
 import { backend } from '../../store/backend'
 import { rupees } from '../../lib/format'
+import { exportAnalyticsToExcel } from '../../lib/exportAnalytics'
 
 function getDayString(d) {
   const year = d.getFullYear()
@@ -173,6 +174,16 @@ export default function Analytics({ open, onClose }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => exportAnalyticsToExcel(data, dateFrom, dateTo)}
+              disabled={!data || loading}
+              title="Download analytics as Excel"
+              className="flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-[0.14em] uppercase border border-brass/40 text-brass/80 hover:border-brass hover:text-brass transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Download className="size-3" />
+              Download
+            </button>
             {confirmingClear ? (
               <>
                 <span className="font-mono text-[10px] tracking-[0.1em] text-oxblood uppercase">

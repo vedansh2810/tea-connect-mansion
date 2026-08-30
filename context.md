@@ -1,4 +1,4 @@
-﻿# Tea Connect Mansion â€” Complete Project Context
+# Tea Connect Mansion â€” Complete Project Context
 
 > **Project**: Tea Connect Mansion (TCM)  
 > **Type**: QR-code table ordering system & live kitchen pass  
@@ -15,6 +15,7 @@
 | **CSS Framework** | Tailwind CSS v4 | 4.0.0 |
 | **Icons** | lucide-react | 0.475.0 |
 | **QR Code Generation** | qrcode | 1.5.4 |
+| **Excel Export** | xlsx (SheetJS) | ^0.18.5 |
 | **Backend / Database** | Supabase (PostgreSQL + Realtime + Auth) | supabase-js 2.112.3 |
 | **Testing** | Vitest + Testing Library (React + User Event + jest-dom) | vitest 4.1.11 |
 | **Language** | JavaScript (ES Modules) | â€” |
@@ -57,6 +58,7 @@ fl/
     |   +-- menu.js                     # Static menu source of truth (7 sections, 42 groups, 257 items)
     |
     +-- lib/
+    |   +-- exportAnalytics.js          # Excel export utility (multi-sheet .xlsx via SheetJS)
     |   +-- format.js                   # Currency, time, elapsed duration, line description formatters
     |   +-- tableToken.js               # Signed table token encoding/decoding for QR URLs
     |   +-- tax.js                      # GST calculation & display utilities
@@ -733,7 +735,7 @@ Computed from raw order records:
 - **Helpers**: `getDayString(d)`, `getPresets()`
 - **Presets**: Today, Yesterday, This Week, This Month, All Time, Custom
 - **Metrics**: Revenue, order volume, AOV, status breakdown, 24-hour histogram, top 15 items, table performance
-- **Features**: 2-step data purge confirmation
+- **Features**: Excel download (multi-sheet .xlsx via `exportAnalyticsToExcel` for the selected date range), 2-step data purge confirmation
 
 #### `TableCodes.jsx`
 - **Purpose**: QR code generator & print layout
@@ -808,7 +810,15 @@ Item:    { id, name, price?: number, prices?: number[], note?, choices?: string[
 
 ## 11. Utility Libraries (`src/lib/`)
 
-### `format.js` â€” Pure Formatting Functions
+### `exportAnalytics.js` — Excel Export
+
+| Function | Input | Output | Description |
+|---|---|---|---|
+| `exportAnalyticsToExcel(data, dateFrom, dateTo)` | Analytics data object, date strings | `.xlsx` file download | Generates a multi-sheet Excel workbook (Summary, Top Items, Hourly Orders, Table Performance) and triggers a browser download named `Analytics_{from}_to_{to}.xlsx` |
+
+Uses the `xlsx` (SheetJS) library for client-side workbook generation. No server roundtrip required.
+
+### `format.js` — Pure Formatting Functions
 
 | Function | Input | Output | Example |
 |---|---|---|---|

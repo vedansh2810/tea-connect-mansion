@@ -107,6 +107,7 @@ src/
     useChime.js              the pass bell, synthesised in WebAudio
     tax.js                   the configured GST rate, applied
     format.js                rupees, clock time, held time
+    exportAnalytics.js       Excel export: multi-sheet .xlsx download
   components/
     ornament/Ornaments.jsx   brass rules, frames, chef mark, veg mark
     chit/ChitPaper.jsx       the chit — shared by the cart and the ticket
@@ -122,6 +123,7 @@ src/
       AdminDashboard.jsx     the pass: counts, filters, the rail
       OrderTicket.jsx        the kitchen's copy of the chit
       SoldOut.jsx            mark items off, put them back
+      Analytics.jsx          revenue, top items, charts — download as Excel
       TableCodes.jsx         printable QR cards
 scripts/setup-supabase.mjs   npm run setup — configure and verify
 supabase/schema.sql          run once to create the tables
