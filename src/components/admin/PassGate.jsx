@@ -1,7 +1,29 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Lock } from 'lucide-react'
 import { CrownRule } from '../ornament/Ornaments'
 import { backend, isCloudConfigured } from '../../store/backend'
+
+/* ── Admin session expiry: 24 hours ──────────────────────────────────────── */
+
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const SESSION_TS_KEY = 'tcm.admin.session_start'
+
+/** Returns true if the stored admin session timestamp is older than 24 hours. */
+function isSessionExpired() {
+  const ts = localStorage.getItem(SESSION_TS_KEY)
+  if (!ts) return false // no timestamp recorded yet
+  return Date.now() - Number(ts) >= SESSION_TTL_MS
+}
+
+/** Record the current time as the admin session start. */
+function stampSession() {
+  localStorage.setItem(SESSION_TS_KEY, String(Date.now()))
+}
+
+/** Clear the stored session timestamp. */
+function clearSessionStamp() {
+  localStorage.removeItem(SESSION_TS_KEY)
+}
 
 /**
  * Gate on the kitchen pass.
@@ -69,20 +91,57 @@ function CloudGate({ children }) {
   }, [lockedUntil])
 
   useEffect(() => {
-    backend.getUser().then((u) => setUser(u ?? null)).catch(() => setUser(null))
-    const unsubscribe = backend.onAuthStateChange((u) => setUser(u ?? null))
+    backend.getUser().then((u) => {
+      if (u && isSessionExpired()) {
+        // Session older than 24 hours — force re-login.
+        backend.signOut().catch(() => {})
+        clearSessionStamp()
+        backend.logSecurity('session_expired', { email: u.email })
+        setUser(null)
+      } else {
+        // If signed in but no stamp exists (e.g. first deploy), stamp now.
+        if (u) stampSession()
+        setUser(u ?? null)
+      }
+    }).catch(() => setUser(null))
+    const unsubscribe = backend.onAuthStateChange((u) => {
+      if (u && isSessionExpired()) {
+        backend.signOut().catch(() => {})
+        clearSessionStamp()
+        setUser(null)
+      } else {
+        setUser(u ?? null)
+      }
+    })
     return unsubscribe
   }, [])
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
       await backend.signOut()
       backend.logSecurity('sign_out', { email: user?.email })
+      clearSessionStamp()
       setUser(null)
     } catch {
+      clearSessionStamp()
       setUser(null)
     }
-  }
+  }, [user])
+
+  /* ── Periodic 24-hour expiry check (every 60 s while signed in) ──────── */
+
+  useEffect(() => {
+    if (!user) return
+    const id = setInterval(() => {
+      if (isSessionExpired()) {
+        backend.signOut().catch(() => {})
+        clearSessionStamp()
+        backend.logSecurity('session_expired', { email: user.email })
+        setUser(null)
+      }
+    }, 60 * 1000) // check every minute
+    return () => clearInterval(id)
+  }, [user])
 
   /* ── Loading ──────────────────────────────────────────────────────────── */
 
@@ -119,6 +178,7 @@ function CloudGate({ children }) {
     try {
       await backend.signIn(email.trim(), password)
       failures.current = 0
+      stampSession()
       backend.logSecurity('sign_in_success', { email: email.trim() })
     } catch (cause) {
       failures.current += 1
@@ -229,11 +289,35 @@ const PIN = import.meta.env.VITE_PASS_PIN
 const REMEMBER_KEY = 'tcm.pass.unlocked'
 
 function PinGate({ children }) {
-  const [unlocked, setUnlocked] = useState(
-    () => !PIN || localStorage.getItem(REMEMBER_KEY) === PIN,
-  )
+  const [unlocked, setUnlocked] = useState(() => {
+    if (!PIN) return true
+    // If 24-hour session has expired, clear the remembered PIN.
+    if (isSessionExpired()) {
+      localStorage.removeItem(REMEMBER_KEY)
+      clearSessionStamp()
+      return false
+    }
+    const remembered = localStorage.getItem(REMEMBER_KEY) === PIN
+    // If remembered but no timestamp exists, stamp now (first deploy).
+    if (remembered && !localStorage.getItem(SESSION_TS_KEY)) stampSession()
+    return remembered
+  })
   const [entry, setEntry] = useState('')
   const [wrong, setWrong] = useState(false)
+
+  /* ── Periodic 24-hour expiry check (every 60 s while unlocked) ──────── */
+
+  useEffect(() => {
+    if (!unlocked || !PIN) return
+    const id = setInterval(() => {
+      if (isSessionExpired()) {
+        localStorage.removeItem(REMEMBER_KEY)
+        clearSessionStamp()
+        setUnlocked(false)
+      }
+    }, 60 * 1000)
+    return () => clearInterval(id)
+  }, [unlocked])
 
   if (unlocked) return children
 
@@ -241,6 +325,7 @@ function PinGate({ children }) {
     event.preventDefault()
     if (entry.trim() === PIN) {
       localStorage.setItem(REMEMBER_KEY, PIN)
+      stampSession()
       setUnlocked(true)
       return
     }
