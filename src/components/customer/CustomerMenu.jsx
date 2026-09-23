@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChefHat, HandMetal, Search, X } from 'lucide-react'
+import { ChefHat, HandMetal, Search, ShoppingBag, X } from 'lucide-react'
 import SectionBlock from './SectionBlock'
 import CartSheet from './CartSheet'
 import OrderPlaced from './OrderPlaced'
@@ -304,25 +304,27 @@ export default function CustomerMenu({ table, demo, onChangeTable, onOpenPass })
       {/* ── The chit tab: the bill peeking up from the bottom edge ──────── */}
       {count > 0 && !cartOpen && (
         <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 safe-b">
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="group relative w-full anim-rise"
-          >
-            <span className="chit-paper block bg-ivory px-4 py-3.5 shadow-[0_-4px_18px_rgb(36_28_20/0.22)] transition-colors group-hover:bg-white">
-              <span className="flex items-center justify-between gap-3">
-                <span className="text-left">
-                  <span className="block font-mono text-[9.5px] tracking-[0.2em] text-brass-dim uppercase">
-                    Table {table} · review your bill
-                  </span>
-                  <span className="mt-0.5 block font-mono text-[0.78rem] text-ink">
-                    {count} {count === 1 ? 'item' : 'items'}
-                  </span>
-                </span>
-                <span className="figure text-base text-ink">{rupees(subtotal)}</span>
+          <div className="chit-paper flex items-center justify-between gap-3 bg-ivory px-4 py-3.5 shadow-[0_-4px_18px_rgb(36_28_20/0.22)] anim-rise">
+            <div className="text-left">
+              <span className="block font-mono text-[9.5px] tracking-[0.2em] text-brass-dim uppercase">
+                Table {table} · review your bill
               </span>
-            </span>
-          </button>
+              <span className="mt-0.5 block font-mono text-[0.78rem] text-ink">
+                {count} {count === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="figure text-base text-ink">{rupees(subtotal)}</span>
+              <button
+                type="button"
+                onClick={() => setCartOpen(true)}
+                className="flex items-center gap-1.5 border border-ink bg-ink px-3.5 py-2 font-mono text-[10px] tracking-[0.14em] text-parchment uppercase transition-colors hover:bg-oxblood hover:border-oxblood"
+              >
+                <ShoppingBag className="size-3.5" strokeWidth={2} />
+                Cart
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
